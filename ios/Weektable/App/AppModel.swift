@@ -39,7 +39,7 @@ final class AppModel {
 
     init(
         repository: any PlanRepository = DemoPlanRepository(),
-        persistence: PersistenceController = PersistenceController()
+        persistence: PersistenceController
     ) {
         self.repository = repository
         self.persistence = persistence
