@@ -1,0 +1,45 @@
+name: Build Weektable for Appetize
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  simulator-build:
+    name: iOS Simulator app
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out the project
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate the Xcode project
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Build and package for Appetize
+        working-directory: ios
+        run: Scripts/build-appetize.sh
+
+      - name: Upload the Appetize-ready ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Weektable-Appetize
+          path: ios/build/Weektable-Appetize.zip
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload the Xcode build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Weektable-Xcode-Log
+          path: ios/build/xcodebuild.log
+          if-no-files-found: ignore
+          retention-days: 14
