@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - "Weektable-Appetize-Build-Kit-v4.zip"
+      - "Weektable-Appetize-Build-Kit-v5.zip"
       - ".github/workflows/build-appetize.yml"
 
 permissions:
@@ -23,7 +23,7 @@ jobs:
       - name: Extract production V1 build kit
         run: |
           mkdir -p release
-          ditto -x -k Weektable-Appetize-Build-Kit-v4.zip release
+          ditto -x -k Weektable-Appetize-Build-Kit-v5.zip release
 
       - name: Install XcodeGen
         run: brew install xcodegen
