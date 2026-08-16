@@ -1,0 +1,23 @@
+workflows:
+  weektable-appetize:
+    name: Weektable - Appetize Simulator Build
+    max_build_duration: 30
+    instance_type: mac_mini_m2
+    environment:
+      xcode: latest
+    scripts:
+      - name: Install XcodeGen
+        script: |
+          brew install xcodegen
+      - name: Generate the Xcode project
+        script: |
+          cd "$CM_BUILD_DIR/ios"
+          xcodegen generate
+      - name: Build and package for Appetize
+        script: |
+          cd "$CM_BUILD_DIR/ios"
+          chmod +x Scripts/build-appetize.sh
+          Scripts/build-appetize.sh
+    artifacts:
+      - ios/build/Weektable-Appetize.zip
+      - ios/build/xcodebuild.log

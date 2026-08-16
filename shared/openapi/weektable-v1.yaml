@@ -1,0 +1,315 @@
+openapi: 3.1.0
+info:
+  title: Weektable API
+  version: 1.0.0
+  description: Server-authoritative planning, grocery, and meal-swap contract shared by web and iOS clients.
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: https://api.weektable.example
+paths:
+  /v1/stores:
+    get:
+      summary: Find supported stores
+      operationId: findStores
+      parameters:
+        - in: query
+          name: postalCode
+          required: true
+          schema: { type: string, pattern: "^[0-9]{5}$" }
+      responses:
+        "200":
+          description: Supported stores for the postal code.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [stores]
+                properties:
+                  stores:
+                    type: array
+                    items: { $ref: "#/components/schemas/Store" }
+        "400": { $ref: "#/components/responses/Problem" }
+  /v1/plan-requests:
+    post:
+      summary: Start a plan generation job
+      operationId: createPlanRequest
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlannerRequest" }
+      responses:
+        "202":
+          description: Generation job accepted.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [job]
+                properties:
+                  job: { $ref: "#/components/schemas/GenerationJob" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "422": { $ref: "#/components/responses/Problem" }
+  /v1/generation-jobs/{jobId}:
+    get:
+      summary: Read resumable generation progress
+      operationId: getGenerationJob
+      parameters:
+        - $ref: "#/components/parameters/JobID"
+      responses:
+        "200":
+          description: Current resumable generation state.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [updates]
+                properties:
+                  updates:
+                    type: array
+                    items: { $ref: "#/components/schemas/GenerationUpdate" }
+        "404": { $ref: "#/components/responses/Problem" }
+  /v1/plans/{planId}:
+    get:
+      summary: Read a completed meal plan
+      operationId: getPlan
+      parameters:
+        - $ref: "#/components/parameters/PlanID"
+      responses:
+        "200":
+          description: Immutable plan and basket snapshot.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [plan]
+                properties:
+                  plan: { $ref: "#/components/schemas/MealPlan" }
+        "404": { $ref: "#/components/responses/Problem" }
+  /v1/plans/{planId}/meals/{mealId}/swap-previews:
+    get:
+      summary: Preview valid meal swaps
+      operationId: getMealSwapPreviews
+      parameters:
+        - $ref: "#/components/parameters/PlanID"
+        - $ref: "#/components/parameters/MealID"
+      responses:
+        "200":
+          description: Constraint-valid alternatives with server-calculated price deltas.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [previews]
+                properties:
+                  previews:
+                    type: array
+                    items: { $ref: "#/components/schemas/SwapPreview" }
+        "404": { $ref: "#/components/responses/Problem" }
+  /v1/plans/{planId}/meals/{mealId}/swap:
+    post:
+      summary: Apply an atomic meal swap
+      operationId: applyMealSwap
+      parameters:
+        - $ref: "#/components/parameters/PlanID"
+        - $ref: "#/components/parameters/MealID"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [previewId]
+              properties:
+                previewId: { type: string }
+      responses:
+        "200":
+          description: Atomically updated plan and basket snapshot.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [plan]
+                properties:
+                  plan: { $ref: "#/components/schemas/MealPlan" }
+        "409": { $ref: "#/components/responses/Problem" }
+  /v1/plans/{planId}/grocery-state:
+    patch:
+      summary: Synchronize grocery checkoffs and pantry choices
+      operationId: updateGroceryState
+      parameters:
+        - $ref: "#/components/parameters/PlanID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GroceryState" }
+      responses:
+        "204": { description: Grocery state synchronized. }
+        "400": { $ref: "#/components/responses/Problem" }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  parameters:
+    IdempotencyKey:
+      in: header
+      name: Idempotency-Key
+      required: true
+      schema: { type: string, minLength: 8, maxLength: 128 }
+    JobID:
+      in: path
+      name: jobId
+      required: true
+      schema: { type: string }
+    PlanID:
+      in: path
+      name: planId
+      required: true
+      schema: { type: string }
+    MealID:
+      in: path
+      name: mealId
+      required: true
+      schema: { type: string }
+  responses:
+    Problem:
+      description: A structured application error.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+  schemas:
+    PlannerRequest:
+      type: object
+      required: [zipCode, storeId, budgetDollars, householdSize, dinnerCount, plannedLeftovers, nutritionStyle, dietaryRestrictions, allergies, dislikedFoods, preferredCuisines, maxCookingMinutes, pantryItems, customInstruction]
+      properties:
+        zipCode: { type: string, pattern: "^[0-9]{5}$" }
+        storeId: { type: string }
+        budgetDollars: { type: integer, minimum: 20, maximum: 500 }
+        householdSize: { type: integer, minimum: 1, maximum: 8 }
+        dinnerCount: { type: integer, minimum: 3, maximum: 7 }
+        plannedLeftovers: { type: boolean }
+        nutritionStyle:
+          type: string
+          enum: [balanced, high-protein, vegetarian, quick, budget-first, lighter]
+        dietaryRestrictions: { type: array, items: { type: string }, maxItems: 12 }
+        allergies: { type: array, items: { type: string }, maxItems: 12 }
+        dislikedFoods: { type: array, items: { type: string }, maxItems: 20 }
+        preferredCuisines: { type: array, items: { type: string }, maxItems: 10 }
+        maxCookingMinutes: { type: integer, minimum: 15, maximum: 90 }
+        pantryItems: { type: array, items: { type: string }, maxItems: 50 }
+        customInstruction: { type: string, maxLength: 400 }
+    Store:
+      type: object
+      required: [id, name, retailer, address, zipCode, priceKind]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        retailer: { type: string }
+        address: { type: string }
+        zipCode: { type: string }
+        priceKind: { $ref: "#/components/schemas/PriceKind" }
+    MealPlan:
+      type: object
+      required: [id, title, store, budgetCents, estimatedTotalCents, priceCoverage, priceKind, meals, basket]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        store: { $ref: "#/components/schemas/Store" }
+        budgetCents: { type: integer, minimum: 0 }
+        estimatedTotalCents: { type: integer, minimum: 0 }
+        priceCoverage: { type: number, minimum: 0, maximum: 1 }
+        priceKind: { $ref: "#/components/schemas/PriceKind" }
+        meals: { type: array, items: { $ref: "#/components/schemas/Meal" } }
+        basket: { type: array, items: { $ref: "#/components/schemas/BasketItem" } }
+    Meal:
+      type: object
+      required: [id, day, title, description, servings, prepMinutes, cookMinutes, calories, proteinGrams, imageAlignment, ingredients, instructions]
+      properties:
+        id: { type: string }
+        day: { type: string }
+        title: { type: string }
+        description: { type: string }
+        servings: { type: integer, minimum: 1 }
+        prepMinutes: { type: integer, minimum: 0 }
+        cookMinutes: { type: integer, minimum: 0 }
+        calories: { type: integer, minimum: 0 }
+        proteinGrams: { type: integer, minimum: 0 }
+        imageAlignment: { type: number, minimum: 0, maximum: 1 }
+        ingredients: { type: array, items: { $ref: "#/components/schemas/RecipeIngredient" } }
+        instructions: { type: array, items: { type: string } }
+    RecipeIngredient:
+      type: object
+      required: [ingredientId, name, quantity, unit]
+      properties:
+        ingredientId: { type: string }
+        name: { type: string }
+        quantity: { type: number, exclusiveMinimum: 0 }
+        unit: { type: string, enum: [oz, lb, count, fl_oz, cup, tbsp, tsp] }
+    BasketItem:
+      type: object
+      required: [id, ingredientId, displayName, productName, packageDisplay, requiredDisplay, packageCount, totalPriceCents, department, mealIds, pantryStatus]
+      properties:
+        id: { type: string }
+        ingredientId: { type: string }
+        displayName: { type: string }
+        productName: { type: string }
+        packageDisplay: { type: string }
+        requiredDisplay: { type: string }
+        packageCount: { type: integer, minimum: 1 }
+        totalPriceCents: { type: integer, minimum: 0 }
+        department: { type: string }
+        mealIds: { type: array, items: { type: string } }
+        pantryStatus: { type: boolean }
+    GenerationJob:
+      type: object
+      required: [id, planId]
+      properties:
+        id: { type: string }
+        planId: { type: string }
+    GenerationUpdate:
+      type: object
+      required: [jobId, stage, progress]
+      properties:
+        jobId: { type: string }
+        stage:
+          type: string
+          enum: [Planning your meals, Combining ingredients, Checking complete packages, Balancing your budget, Finalizing your week]
+        progress: { type: number, minimum: 0, maximum: 1 }
+        completedPlanId: { type: [string, "null"] }
+    SwapPreview:
+      type: object
+      required: [id, meal, deltaCents, reusedIngredientCount, resultingTotalCents]
+      properties:
+        id: { type: string }
+        meal: { $ref: "#/components/schemas/Meal" }
+        deltaCents: { type: integer }
+        reusedIngredientCount: { type: integer, minimum: 0 }
+        resultingTotalCents: { type: integer, minimum: 0 }
+    GroceryState:
+      type: object
+      required: [checkedItemIds, ownedItemIds]
+      properties:
+        checkedItemIds: { type: array, uniqueItems: true, items: { type: string } }
+        ownedItemIds: { type: array, uniqueItems: true, items: { type: string } }
+    PriceKind:
+      type: string
+      enum: [live, feed, estimated, fixture]
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+security:
+  - bearerAuth: []
