@@ -25,7 +25,7 @@ jobs:
 
       - name: Build and package for Appetize
         working-directory: ios
-        run: Scripts/build-appetize.sh
+        run: bash Scripts/build-appetize.sh
 
       - name: Upload the Appetize-ready ZIP
         uses: actions/upload-artifact@v4
