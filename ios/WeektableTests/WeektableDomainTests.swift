@@ -42,7 +42,7 @@ final class WeektableDomainTests: XCTestCase {
         XCTAssertNotEqual(preview.meal.title, DemoData.meals[0].title)
     }
 
-    func testSecondWeekIsGatedForFreeUserWithoutRemovingCurrentPlan() async {
+    func testFreeBetaAllowsAnotherWeekWithoutRemovingCurrentPlan() async {
         await MainActor.run {
             let persistence = PersistenceController(inMemory: true)
             let model = AppModel(persistence: persistence, subscriptions: SubscriptionService())
@@ -52,8 +52,8 @@ final class WeektableDomainTests: XCTestCase {
 
             model.planAnotherWeek()
 
-            XCTAssertEqual(model.paywallTrigger, .anotherWeek)
-            XCTAssertEqual(model.rootFlow, .main)
+            XCTAssertNil(model.paywallTrigger)
+            XCTAssertEqual(model.rootFlow, .planner)
             XCTAssertNotNil(model.plan)
         }
     }
