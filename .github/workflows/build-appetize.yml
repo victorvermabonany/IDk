@@ -1,6 +1,15 @@
 name: Build Cove for Appetize
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/build-appetize.yml
+      - app/**
+      - ios/**
+      - shared/**
+      - BROWSERSTACK_APP_LIVE.md
   workflow_dispatch:
     inputs:
       runtime_mode:
@@ -31,6 +40,17 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: cove-ios-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  COVE_RUNTIME_MODE: ${{ inputs.runtime_mode || 'PRODUCTION_LIVE' }}
+  COVE_API_BASE_URL: ${{ inputs.api_base_url || 'https://cove-planner-delta.vercel.app' }}
+  COVE_PRIVACY_URL: ${{ inputs.privacy_url || 'https://cove-planner-delta.vercel.app/privacy' }}
+  COVE_TERMS_URL: ${{ inputs.terms_url || 'https://cove-planner-delta.vercel.app/terms' }}
+  COVE_SUPPORT_URL: ${{ inputs.support_url || 'https://cove-planner-delta.vercel.app/support' }}
 
 jobs:
   simulator-build:
@@ -110,22 +130,16 @@ jobs:
 
       - name: Build and package for Appetize
         working-directory: ios
-        env:
-          COVE_RUNTIME_MODE: ${{ inputs.runtime_mode }}
-          COVE_API_BASE_URL: ${{ inputs.api_base_url }}
-          COVE_PRIVACY_URL: ${{ inputs.privacy_url }}
-          COVE_TERMS_URL: ${{ inputs.terms_url }}
-          COVE_SUPPORT_URL: ${{ inputs.support_url }}
         run: bash Scripts/build-appetize.sh
 
       - name: Verify embedded Appetize configuration
         working-directory: ios
         env:
-          EXPECTED_RUNTIME_MODE: ${{ inputs.runtime_mode }}
-          EXPECTED_API_BASE_URL: ${{ inputs.api_base_url }}
-          EXPECTED_PRIVACY_URL: ${{ inputs.privacy_url }}
-          EXPECTED_TERMS_URL: ${{ inputs.terms_url }}
-          EXPECTED_SUPPORT_URL: ${{ inputs.support_url }}
+          EXPECTED_RUNTIME_MODE: ${{ env.COVE_RUNTIME_MODE }}
+          EXPECTED_API_BASE_URL: ${{ env.COVE_API_BASE_URL }}
+          EXPECTED_PRIVACY_URL: ${{ env.COVE_PRIVACY_URL }}
+          EXPECTED_TERMS_URL: ${{ env.COVE_TERMS_URL }}
+          EXPECTED_SUPPORT_URL: ${{ env.COVE_SUPPORT_URL }}
         run: |
           PLIST=build/DerivedData/Build/Products/Debug-iphonesimulator/Weektable.app/Info.plist
           [[ -f "$PLIST" ]] || { echo "Missing packaged Info.plist" >&2; exit 1; }
@@ -161,5 +175,99 @@ jobs:
         with:
           name: Cove-Xcode-Test-Log
           path: ios/build/xcode-test.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+  browserstack-device-build:
+    name: Physical iPhone IPA and App Live upload
+    needs: simulator-build
+    if: ${{ (inputs.runtime_mode || 'PRODUCTION_LIVE') != 'DEVELOPMENT_FIXTURE' }}
+    runs-on: macos-15
+    timeout-minutes: 20
+    env:
+      BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
+      BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
+
+    steps:
+      - name: Check out the project
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate the Xcode project
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Build physical-iPhone IPA for BrowserStack
+        working-directory: ios
+        run: bash Scripts/build-browserstack.sh
+
+      - name: Verify embedded BrowserStack configuration
+        working-directory: ios
+        run: |
+          VERIFY_ROOT=build/browserstack-verify
+          rm -rf "$VERIFY_ROOT"
+          mkdir -p "$VERIFY_ROOT"
+          /usr/bin/unzip -q build/Cove-BrowserStack.ipa -d "$VERIFY_ROOT"
+          PLIST="$VERIFY_ROOT/Payload/Weektable.app/Info.plist"
+          [[ -f "$PLIST" ]] || { echo "Missing packaged Info.plist" >&2; exit 1; }
+          read_key() { /usr/libexec/PlistBuddy -c "Print :$1" "$PLIST"; }
+          [[ "$(read_key CFBundleIdentifier)" == "com.weektable.ios" ]] || { echo "Unexpected bundle identifier" >&2; exit 1; }
+          [[ "$(read_key COVE_RUNTIME_MODE)" == "$COVE_RUNTIME_MODE" ]] || { echo "Runtime mode was not embedded" >&2; exit 1; }
+          [[ "$(read_key COVE_API_BASE_URL)" == "$COVE_API_BASE_URL" ]] || { echo "API URL was not embedded" >&2; exit 1; }
+          [[ "$(read_key COVE_PRIVACY_URL)" == "$COVE_PRIVACY_URL" ]] || { echo "Privacy URL was not embedded" >&2; exit 1; }
+          [[ "$(read_key COVE_TERMS_URL)" == "$COVE_TERMS_URL" ]] || { echo "Terms URL was not embedded" >&2; exit 1; }
+          [[ "$(read_key COVE_SUPPORT_URL)" == "$COVE_SUPPORT_URL" ]] || { echo "Support URL was not embedded" >&2; exit 1; }
+
+      - name: Upload BrowserStack IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cove-BrowserStack-IPA
+          path: ios/build/Cove-BrowserStack.ipa
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Explain skipped App Live upload
+        if: env.BROWSERSTACK_USERNAME == '' || env.BROWSERSTACK_ACCESS_KEY == ''
+        run: |
+          echo "::notice::Cove-BrowserStack.ipa passed validation, but the App Live upload was skipped. Add BROWSERSTACK_USERNAME and BROWSERSTACK_ACCESS_KEY as GitHub Actions secrets."
+
+      - name: Upload IPA to BrowserStack App Live
+        if: env.BROWSERSTACK_USERNAME != '' && env.BROWSERSTACK_ACCESS_KEY != ''
+        working-directory: ios
+        run: |
+          RESPONSE_FILE=build/browserstack-upload-response.json
+          HTTP_STATUS=$(curl \
+            --silent \
+            --show-error \
+            --output "$RESPONSE_FILE" \
+            --write-out '%{http_code}' \
+            --user "$BROWSERSTACK_USERNAME:$BROWSERSTACK_ACCESS_KEY" \
+            --request POST \
+            'https://api-cloud.browserstack.com/app-live/upload' \
+            --form 'file=@build/Cove-BrowserStack.ipa' \
+            --form 'data={"custom_id":"cove-ios"}')
+
+          if [[ "$HTTP_STATUS" -lt 200 || "$HTTP_STATUS" -ge 300 ]]; then
+            echo "BrowserStack App Live upload failed with HTTP $HTTP_STATUS." >&2
+            python3 -c 'import json,sys; data=json.load(open(sys.argv[1])); print(data.get("error", "Upload failed"))' "$RESPONSE_FILE" >&2 || true
+            exit 1
+          fi
+
+          APP_URL=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("app_url", ""))' "$RESPONSE_FILE")
+          echo "BrowserStack App Live upload succeeded."
+          if [[ -n "$APP_URL" ]]; then
+            echo "BrowserStack app reference: $APP_URL" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "BrowserStack accepted the IPA with HTTP $HTTP_STATUS." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload BrowserStack build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cove-BrowserStack-Xcode-Log
+          path: ios/build/browserstack-xcodebuild.log
           if-no-files-found: ignore
           retention-days: 14

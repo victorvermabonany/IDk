@@ -27,6 +27,8 @@ Kroger access requires an approved Kroger Developer application and OAuth2 clien
 
 Use `COVE_RUNTIME_MODE=STAGING_LIVE` plus the four HTTPS Cove URL build settings for a live Appetize build. Use `PRODUCTION_LIVE` for Release/TestFlight. The pre-build gate rejects missing URLs and fixture repository references. Target/scheme/bundle identifiers remain legacy-compatible; the installed display name is Cove.
 
+The same GitHub workflow has an independent BrowserStack App Live job. It creates `Cove-BrowserStack.ipa` from an `iphoneos` Release build, verifies the ARM64 device executable and embedded public configuration, retains the IPA as a GitHub artifact, and uploads it to the App Live REST endpoint when `BROWSERSTACK_USERNAME` and `BROWSERSTACK_ACCESS_KEY` repository secrets are configured. BrowserStack re-signing is only for its own devices; TestFlight and App Store distribution still require Apple Developer Program signing assets.
+
 ## Legal, support, and operations
 
 Deploy `/privacy`, `/terms`, and `/support`, then configure those public URLs in iOS. Support submissions are validated, rate-limited, and stored for review; automatic email delivery is not configured.

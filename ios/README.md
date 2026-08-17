@@ -20,4 +20,4 @@ open Weektable.xcodeproj
 
 Live builds require `COVE_API_BASE_URL`, `COVE_PRIVACY_URL`, `COVE_TERMS_URL`, and `COVE_SUPPORT_URL`. Deprecated `WEEKTABLE_*` URL keys are temporarily read for compatibility. OpenAI, PostgreSQL, and Kroger credentials remain server-side.
 
-GitHub Actions generates the project, validates Release configuration, runs Swift unit/UI tests, and builds the ARM simulator archive. The shared contract filename `../shared/openapi/weektable-v1.yaml` is also retained for compatibility.
+GitHub Actions generates the project, validates Release configuration, runs Swift unit/UI tests, and builds both the ARM simulator archive for Appetize and an ARM64 physical-iPhone IPA for BrowserStack App Live. The BrowserStack build is a separate job, so it does not replace or weaken the working Appetize path. See `../BROWSERSTACK_APP_LIVE.md` for credentials and signing details. The shared contract filename `../shared/openapi/weektable-v1.yaml` is also retained for compatibility.
