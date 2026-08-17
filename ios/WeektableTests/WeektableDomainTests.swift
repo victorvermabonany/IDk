@@ -109,11 +109,11 @@ final class WeektableDomainTests: XCTestCase {
         request.householdSize = 2
         request.dinnerCount = 3
         request.leftovers = LeftoverConstraint(enabled: true, extraServings: 1)
-        request.pantryItems.insert("brown rice")
+        request.pantryItems.insert("olive oil")
         let firstJob = try await repository.createPlan(request: request, idempotencyKey: "primary-store")
         let first = try await repository.plan(id: firstJob.planID)
         XCTAssertTrue(first.meals.allSatisfy { $0.servings == 3 })
-        XCTAssertEqual(first.basket.first(where: { $0.ingredientID == "brown_rice" })?.pantryStatus, true)
+        XCTAssertEqual(first.basket.first(where: { $0.ingredientID == "olive_oil" })?.pantryStatus, true)
 
         request.store = PlannerStoreConstraint(id: DemoData.valueStore.id, locationID: DemoData.valueStore.providerStoreID, postalCode: "45202")
         let secondJob = try await repository.createPlan(request: request, idempotencyKey: "value-store")
@@ -130,9 +130,10 @@ final class WeektableDomainTests: XCTestCase {
         let job = try await repository.createPlan(request: request, idempotencyKey: "pantry")
         let before = try await repository.plan(id: job.planID)
         let item = try XCTUnwrap(before.basket.first(where: { !$0.pantryStatus }))
+        let existingOwned = Set(before.basket.filter(\.pantryStatus).map(\.id))
         let after = try await repository.updateGroceryState(
             planID: before.id,
-            state: GroceryState(checkedItemIDs: [], ownedItemIDs: [item.id])
+            state: GroceryState(checkedItemIDs: [], ownedItemIDs: existingOwned.union([item.id]))
         )
         XCTAssertEqual(after.estimatedTotalCents, before.estimatedTotalCents - item.totalPriceCents)
         XCTAssertEqual(after.basket.first(where: { $0.id == item.id })?.pantryStatus, true)
