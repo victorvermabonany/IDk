@@ -118,6 +118,26 @@ jobs:
           COVE_SUPPORT_URL: ${{ inputs.support_url }}
         run: bash Scripts/build-appetize.sh
 
+      - name: Verify embedded Appetize configuration
+        working-directory: ios
+        env:
+          EXPECTED_RUNTIME_MODE: ${{ inputs.runtime_mode }}
+          EXPECTED_API_BASE_URL: ${{ inputs.api_base_url }}
+          EXPECTED_PRIVACY_URL: ${{ inputs.privacy_url }}
+          EXPECTED_TERMS_URL: ${{ inputs.terms_url }}
+          EXPECTED_SUPPORT_URL: ${{ inputs.support_url }}
+        run: |
+          PLIST=build/DerivedData/Build/Products/Debug-iphonesimulator/Weektable.app/Info.plist
+          [[ -f "$PLIST" ]] || { echo "Missing packaged Info.plist" >&2; exit 1; }
+          read_key() { /usr/libexec/PlistBuddy -c "Print :$1" "$PLIST"; }
+          [[ "$(read_key COVE_RUNTIME_MODE)" == "$EXPECTED_RUNTIME_MODE" ]] || { echo "Runtime mode was not embedded" >&2; exit 1; }
+          if [[ "$EXPECTED_RUNTIME_MODE" != "DEVELOPMENT_FIXTURE" ]]; then
+            [[ "$(read_key COVE_API_BASE_URL)" == "$EXPECTED_API_BASE_URL" ]] || { echo "API URL was not embedded" >&2; exit 1; }
+            [[ "$(read_key COVE_PRIVACY_URL)" == "$EXPECTED_PRIVACY_URL" ]] || { echo "Privacy URL was not embedded" >&2; exit 1; }
+            [[ "$(read_key COVE_TERMS_URL)" == "$EXPECTED_TERMS_URL" ]] || { echo "Terms URL was not embedded" >&2; exit 1; }
+            [[ "$(read_key COVE_SUPPORT_URL)" == "$EXPECTED_SUPPORT_URL" ]] || { echo "Support URL was not embedded" >&2; exit 1; }
+          fi
+
       - name: Upload the Appetize-ready ZIP
         uses: actions/upload-artifact@v4
         with:
