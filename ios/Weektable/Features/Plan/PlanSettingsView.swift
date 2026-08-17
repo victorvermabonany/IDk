@@ -87,6 +87,7 @@ private struct PlanEditSheet: View {
     let target: PlanEditTarget
     @Environment(\.dismiss) private var dismiss
     @State private var draft: PlannerRequest
+    @State private var newPantryItem = ""
 
     init(appModel: AppModel, target: PlanEditTarget) {
         self.appModel = appModel
@@ -101,7 +102,13 @@ private struct PlanEditSheet: View {
                 case .storeBudget:
                     Section("Store") {
                         TextField("ZIP code", text: $draft.zipCode).keyboardType(.numberPad).textContentType(.postalCode)
-                        Picker("Store", selection: $draft.storeID) { Text("Kroger · Downtown sample catalog").tag("demo-kroger-45202") }
+                        Button("Find stores") { Task { await appModel.findStores(postalCode: draft.zipCode) } }
+                            .disabled(draft.zipCode.count != 5)
+                        if !storeChoices.isEmpty {
+                            Picker("Store", selection: $draft.storeID) {
+                                ForEach(storeChoices, id: \.id) { Text($0.name).tag($0.id) }
+                            }
+                        }
                     }
                     Section("Weekly dinner budget") {
                         TextField("Budget", value: $draft.budgetDollars, format: .number).keyboardType(.numberPad)
@@ -133,7 +140,14 @@ private struct PlanEditSheet: View {
                                 if selected { draft.pantryItems.insert(item) } else { draft.pantryItems.remove(item) }
                             }))
                         }
-                        TextField("Anything else", text: $draft.customPantryItems, axis: .vertical)
+                    }
+                    Section("Add another") {
+                        TextField("Garlic powder", text: $newPantryItem)
+                            .textInputAutocapitalization(.never)
+                            .submitLabel(.done)
+                            .onSubmit(addPantryItem)
+                        Button("Add to pantry", action: addPantryItem)
+                            .disabled(newPantryItem.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                 }
             }
@@ -151,5 +165,23 @@ private struct PlanEditSheet: View {
                 }
             }
         }
+        .task {
+            if target == .storeBudget, draft.zipCode.count == 5 {
+                await appModel.findStores(postalCode: draft.zipCode)
+            }
+        }
+    }
+
+    private var storeChoices: [Store] {
+        if !appModel.availableStores.isEmpty { return appModel.availableStores }
+        return appModel.plan.map { [$0.store] } ?? []
+    }
+
+    private func addPantryItem() {
+        let item = newPantryItem.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !item.isEmpty else { return }
+        draft.pantryItems.insert(item)
+        newPantryItem = ""
+        Haptics.selection()
     }
 }
