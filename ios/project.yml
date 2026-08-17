@@ -15,7 +15,14 @@ settings:
     INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.food-and-drink
     INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
     INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
-    INFOPLIST_KEY_WEEKTABLE_API_BASE_URL: ""
+    WEEKTABLE_API_BASE_URL: ""
+    WEEKTABLE_PRIVACY_URL: ""
+    WEEKTABLE_TERMS_URL: ""
+    WEEKTABLE_SUPPORT_URL: ""
+    INFOPLIST_KEY_WEEKTABLE_API_BASE_URL: "$(WEEKTABLE_API_BASE_URL)"
+    INFOPLIST_KEY_WEEKTABLE_PRIVACY_URL: "$(WEEKTABLE_PRIVACY_URL)"
+    INFOPLIST_KEY_WEEKTABLE_TERMS_URL: "$(WEEKTABLE_TERMS_URL)"
+    INFOPLIST_KEY_WEEKTABLE_SUPPORT_URL: "$(WEEKTABLE_SUPPORT_URL)"
     INFOPLIST_KEY_UILaunchScreen_Generation: YES
     INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
     ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -28,6 +35,9 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.weektable.ios
+    preBuildScripts:
+      - name: Validate Release configuration
+        script: bash "$SRCROOT/Scripts/validate-release-config.sh"
     scheme:
       storeKitConfiguration: Weektable/Configuration/Weektable.storekit
       testTargets:

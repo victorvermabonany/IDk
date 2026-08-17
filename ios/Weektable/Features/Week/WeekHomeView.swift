@@ -143,9 +143,7 @@ private struct MealCard: View {
         VStack(alignment: .leading, spacing: 0) {
             NavigationLink(value: meal.id) {
                 VStack(alignment: .leading, spacing: 0) {
-                    Image(meal.imageAssetName)
-                        .resizable()
-                        .scaledToFill()
+                    MealPhoto(meal: meal)
                         .frame(height: 178)
                         .clipped()
                         .overlay(alignment: .topLeading) {
@@ -198,8 +196,8 @@ struct PriceSourceNotice: View {
     var body: some View {
         Label {
             Text(priceKind == .fixture
-                 ? "Demo catalog · full-package fixture prices. Verify current shelf prices and labels."
-                 : "Full-package prices · \(priceKind.rawValue.capitalized) source")
+                 ? "Estimated complete-package prices for planning. Verify current shelf prices and labels."
+                 : "Estimated complete-package prices · \(priceKind.rawValue.capitalized) source. Verify shelf prices and labels.")
         } icon: {
             Image(systemName: "info.circle.fill")
         }

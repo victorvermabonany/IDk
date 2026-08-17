@@ -44,7 +44,7 @@ struct ProfileView: View {
 
             Section("About") {
                 NavigationLink {
-                    ProfileTextView(title: "Price and nutrition sources", symbol: "info.circle", text: "Weektable uses complete-package catalog prices and always identifies the source. Demo catalog prices are deterministic fixtures, not current store quotes. Nutrition values are planning estimates, not medical guidance.")
+                    ProfileTextView(title: "Price and nutrition sources", symbol: "info.circle", text: "Weektable uses estimated complete-package catalog prices for planning. Check current shelf prices and labels. Nutrition values are estimates, not medical advice.")
                 } label: { Label("Price and nutrition sources", systemImage: "info.circle") }
                 NavigationLink {
                     ProfileTextView(title: "Privacy", symbol: "hand.raised", text: "Your latest planner answers, cached plan, and grocery progress are stored on this iPhone. Weektable does not require an account for the core planning flow.")

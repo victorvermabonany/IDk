@@ -8,13 +8,10 @@ struct RecipeDetailView: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 24) {
-                Image(meal.imageAssetName)
-                    .resizable()
-                    .scaledToFill()
+                MealPhoto(meal: meal)
                     .frame(height: 270)
                     .clipped()
                     .containerRelativeFrame(.horizontal)
-                    .accessibilityLabel("Prepared \(meal.title)")
 
                 VStack(alignment: .leading, spacing: 14) {
                     SectionLabel(text: "\(meal.day) dinner")

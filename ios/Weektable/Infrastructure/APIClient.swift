@@ -11,11 +11,13 @@ struct APIErrorEnvelope: Decodable {
 enum APIError: LocalizedError {
     case invalidResponse
     case server(status: Int, message: String)
+    case configuration(String)
 
     var errorDescription: String? {
         switch self {
         case .invalidResponse: "The server returned an unreadable response."
         case let .server(_, message): message
+        case let .configuration(message): message
         }
     }
 }
@@ -49,7 +51,9 @@ actor APIClient {
         guard let url = URL(string: path, relativeTo: baseURL)?.absoluteURL else { throw APIError.invalidResponse }
         var request = URLRequest(url: url)
         request.httpMethod = method
+        request.timeoutInterval = 60
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(DeviceIdentifier.value, forHTTPHeaderField: "X-Weektable-Device-ID")
         if let body {
             request.httpBody = try encoder.encode(AnyEncodable(body))
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -78,9 +82,11 @@ actor APIClient {
         guard let url = URL(string: path, relativeTo: baseURL)?.absoluteURL else { throw APIError.invalidResponse }
         var request = URLRequest(url: url)
         request.httpMethod = method
+        request.timeoutInterval = 30
         request.httpBody = try encoder.encode(AnyEncodable(body))
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(DeviceIdentifier.value, forHTTPHeaderField: "X-Weektable-Device-ID")
         if let token = await sessionToken() {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
@@ -91,6 +97,16 @@ actor APIClient {
             throw APIError.server(status: http.statusCode, message: envelope?.error.message ?? "Request failed.")
         }
     }
+}
+
+private enum DeviceIdentifier {
+    static let value: String = {
+        let key = "weektable.device-id"
+        if let saved = UserDefaults.standard.string(forKey: key) { return saved }
+        let created = UUID().uuidString
+        UserDefaults.standard.set(created, forKey: key)
+        return created
+    }()
 }
 
 private struct AnyEncodable: Encodable {

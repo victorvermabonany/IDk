@@ -21,14 +21,16 @@ struct SettingsView: View {
                 .padding(.vertical, 6)
             }
 
-            Section("Weektable Pro") {
-                NavigationLink {
-                    SubscriptionSettingsView(appModel: appModel)
-                } label: {
-                    Label {
-                        LabeledContent("Subscription", value: appModel.subscriptions.isPro ? "Pro active" : "Free")
-                    } icon: {
-                        Image(systemName: "crown.fill").foregroundStyle(WeektableTheme.brand)
+            if FeatureFlags.subscriptionsEnabled {
+                Section("Weektable Pro") {
+                    NavigationLink {
+                        SubscriptionSettingsView(appModel: appModel)
+                    } label: {
+                        Label {
+                            LabeledContent("Subscription", value: appModel.subscriptions.isPro ? "Pro active" : "Free")
+                        } icon: {
+                            Image(systemName: "crown.fill").foregroundStyle(WeektableTheme.brand)
+                        }
                     }
                 }
             }
@@ -46,27 +48,21 @@ struct SettingsView: View {
                     SettingsTextView(
                         title: "Prices and nutrition",
                         symbol: "info.circle",
-                        text: "Weektable uses complete-package grocery catalog prices and identifies their source. Fixture prices are sample data, not current retailer quotes. Nutrition values are planning estimates, not medical guidance."
+                        text: "Weektable uses estimated complete-package catalog prices for planning and identifies their source and observation time. Check current shelf prices and package labels. Nutrition values are estimates, not medical advice."
                     )
                 } label: {
                     Label("Prices and nutrition", systemImage: "info.circle")
                 }
 
-                NavigationLink {
-                    SettingsTextView(
-                        title: "Privacy",
-                        symbol: "hand.raised",
-                        text: "Planner answers are sent to the configured Weektable backend when live planning is enabled. The server may use OpenAI for recipe proposals and a grocery provider for products and prices. Your cached plan and grocery progress are stored on this iPhone. Allergy names should not be included in general analytics events."
-                    )
-                } label: {
-                    Label("Privacy information", systemImage: "hand.raised")
-                }
+                if let url = AppConfiguration.privacyURL { Link("Privacy", destination: url).accessibilityHint("Opens the Weektable privacy page") }
+                if let url = AppConfiguration.termsURL { Link("Terms", destination: url).accessibilityHint("Opens the Weektable terms page") }
+                if let url = AppConfiguration.supportURL { Link("Support", destination: url).accessibilityHint("Opens Weektable support") }
             }
 
             Section {
                 LabeledContent("Version", value: appVersion)
             } footer: {
-                Text("Legal URLs and customer-support contact must be configured before App Store submission.")
+                Text("This internal beta is free. Generated plans use available recipe and catalog metadata; always verify package labels and cross-contact warnings.")
             }
         }
         .navigationTitle("Settings")

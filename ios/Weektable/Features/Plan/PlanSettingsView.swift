@@ -36,11 +36,21 @@ struct PlanSettingsView: View {
                     Divider().padding(.leading, 48)
                     editRow(.household, symbol: "fork.knife", title: "Dinners", value: "\(appModel.plannerDraft.dinnerCount)")
                     Divider().padding(.leading, 48)
+                    editRow(.household, symbol: "takeoutbag.and.cup.and.straw", title: "Leftovers", value: appModel.plannerDraft.leftovers.enabled ? "+\(appModel.plannerDraft.leftovers.extraServings) servings" : "Off")
+                    Divider().padding(.leading, 48)
                     editRow(.food, symbol: appModel.plannerDraft.nutritionStyle.symbol, title: "Dinner style", value: appModel.plannerDraft.nutritionStyle.title)
                     Divider().padding(.leading, 48)
                     editRow(.food, symbol: "timer", title: "Cooking time", value: "Up to \(appModel.plannerDraft.maxCookingMinutes) min")
                     Divider().padding(.leading, 48)
                     editRow(.food, symbol: "exclamationmark.shield", title: "Allergies", value: appModel.plannerDraft.allergies.isEmpty ? "None" : "\(appModel.plannerDraft.allergies.count) selected")
+                    Divider().padding(.leading, 48)
+                    editRow(.food, symbol: "checklist", title: "Restrictions", value: appModel.plannerDraft.dietaryRestrictions.isEmpty ? "None" : "\(appModel.plannerDraft.dietaryRestrictions.count) selected")
+                    Divider().padding(.leading, 48)
+                    editRow(.food, symbol: "hand.thumbsdown", title: "Foods to avoid", value: appModel.plannerDraft.dislikedFoodItems.isEmpty ? "None" : "\(appModel.plannerDraft.dislikedFoodItems.count) listed")
+                    Divider().padding(.leading, 48)
+                    editRow(.food, symbol: "globe", title: "Cuisines", value: appModel.plannerDraft.preferredCuisines.isEmpty ? "Any" : "\(appModel.plannerDraft.preferredCuisines.count) selected")
+                    Divider().padding(.leading, 48)
+                    editRow(.food, symbol: "text.alignleft", title: "Instructions", value: appModel.plannerDraft.customInstructions.isEmpty ? "None" : "Added")
                     Divider().padding(.leading, 48)
                     editRow(.pantry, symbol: "cabinet", title: "Pantry", value: "\(appModel.plannerDraft.pantryItems.count) staples")
                 }
@@ -111,13 +121,17 @@ private struct PlanEditSheet: View {
                         }
                     }
                     Section("Weekly dinner budget") {
-                        TextField("Budget", value: $draft.budgetDollars, format: .number).keyboardType(.numberPad)
+                        Stepper(draft.budgetCents.currency, value: $draft.budgetCents, in: 2_000...50_000, step: 500)
+                        Text("Adjusts in $5 increments. Supported range: $20–$500.").font(.footnote).foregroundStyle(.secondary)
                     }
                 case .household:
                     Section("People and dinners") {
                         Stepper("\(draft.householdSize) people", value: $draft.householdSize, in: 1...8)
                         Picker("Dinners", selection: $draft.dinnerCount) { ForEach(3...7, id: \.self) { Text("\($0)").tag($0) } }
                         Toggle("Plan for leftovers", isOn: $draft.plannedLeftovers)
+                        if draft.leftovers.enabled {
+                            Stepper("\(draft.leftovers.extraServings) extra servings", value: $draft.leftovers.extraServings, in: 1...8)
+                        }
                     }
                 case .food:
                     Section("Dinner style") {
@@ -126,12 +140,24 @@ private struct PlanEditSheet: View {
                     }
                     Section("Restrictions") {
                         TextField("Foods to avoid", text: $draft.dislikedFoods, axis: .vertical)
+                        ForEach(["gluten-free", "dairy-free", "vegan"], id: \.self) { restriction in
+                            Toggle(restriction.capitalized, isOn: memberBinding(restriction, in: $draft.dietaryRestrictions))
+                        }
                         ForEach(["milk", "eggs", "peanuts", "tree nuts", "soy", "wheat", "fish", "shellfish"], id: \.self) { allergy in
-                            Toggle(allergy.capitalized, isOn: Binding(get: { draft.allergies.contains(allergy) }, set: { selected in
-                                if selected { draft.allergies.insert(allergy) } else { draft.allergies.remove(allergy) }
-                            }))
+                            Toggle(allergy.capitalized, isOn: memberBinding(allergy, in: $draft.allergies))
                         }
                         Text("Allergies remain hard constraints in every generated plan.").font(.caption).foregroundStyle(.secondary)
+                    }
+                    Section("Cuisines and notes") {
+                        ForEach(["Mexican", "Italian", "Mediterranean", "Asian-inspired"], id: \.self) { cuisine in
+                            Toggle(cuisine, isOn: memberBinding(cuisine, in: $draft.preferredCuisines))
+                        }
+                        TextField("Custom instructions", text: $draft.customInstructions, axis: .vertical)
+                            .lineLimit(2...5)
+                            .onChange(of: draft.customInstructions) { _, value in
+                                if value.count > 400 { draft.customInstructions = String(value.prefix(400)) }
+                            }
+                        Text("\(draft.customInstructions.count) of 400 characters").font(.caption).foregroundStyle(.secondary)
                     }
                 case .pantry:
                     Section("Pantry staples") {
@@ -183,5 +209,11 @@ private struct PlanEditSheet: View {
         draft.pantryItems.insert(item)
         newPantryItem = ""
         Haptics.selection()
+    }
+
+    private func memberBinding(_ value: String, in set: Binding<Set<String>>) -> Binding<Bool> {
+        Binding(get: { set.wrappedValue.contains(value) }, set: { selected in
+            if selected { set.wrappedValue.insert(value) } else { set.wrappedValue.remove(value) }
+        })
     }
 }

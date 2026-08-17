@@ -207,14 +207,7 @@ private struct StoreBudgetStep: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Weekly dinner budget").font(.headline)
-                HStack {
-                    Text("$").foregroundStyle(.secondary)
-                    TextField("Budget", value: $draft.budgetDollars, format: .number)
-                        .keyboardType(.numberPad)
-                }
-                .font(.title3.weight(.semibold))
-                .padding(14)
-                .background(WeektableTheme.raised, in: RoundedRectangle(cornerRadius: WeektableTheme.controlRadius))
+                CurrencyBudgetField(budgetCents: $draft.budgetCents)
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -231,7 +224,8 @@ private struct StoreBudgetStep: View {
                         .frame(minHeight: 56)
                 } else if appModel.storeSearchState == .failed {
                     VStack(alignment: .leading, spacing: 8) {
-                        Label("Stores could not be loaded. Your ZIP code is still saved.", systemImage: "wifi.exclamationmark")
+                        Label(appModel.storeErrorMessage ?? "Stores could not be loaded. Your ZIP code is still saved.", systemImage: "wifi.exclamationmark")
+                            .fixedSize(horizontal: false, vertical: true)
                         Button("Try again") {
                             Task {
                                 await appModel.findStores(postalCode: draft.zipCode)
@@ -251,7 +245,7 @@ private struct StoreBudgetStep: View {
                     .padding(8)
                     .background(WeektableTheme.raised, in: RoundedRectangle(cornerRadius: WeektableTheme.controlRadius))
                 }
-                Label("Demo catalog prices are clearly labeled and are not current store quotes.", systemImage: "info.circle")
+                Label("Estimated complete-package prices for planning. Check current shelf prices and labels.", systemImage: "info.circle")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -262,6 +256,51 @@ private struct StoreBudgetStep: View {
                 if let first = appModel.availableStores.first { draft.storeID = first.id }
             }
         }
+    }
+}
+
+private struct CurrencyBudgetField: View {
+    @Binding var budgetCents: Int
+    @State private var text = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("$").foregroundStyle(.secondary)
+                TextField("100.00", text: $text)
+                    .keyboardType(.decimalPad)
+                    .accessibilityLabel("Weekly dinner budget")
+                    .onChange(of: text) { _, value in updateBudget(from: value) }
+            }
+            .font(.title3.weight(.semibold))
+            .padding(14)
+            .background(WeektableTheme.raised, in: RoundedRectangle(cornerRadius: WeektableTheme.controlRadius))
+
+            if !text.isEmpty, parsedCents(text) == nil {
+                Text("Enter an amount from $20 to $500 with up to two decimal places.")
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+                    .accessibilityLabel("Budget error: Enter an amount from 20 to 500 dollars")
+            } else {
+                Text("Supported beta budget: $20–$500.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .task { if text.isEmpty { text = String(format: "%.2f", Double(budgetCents) / 100) } }
+    }
+
+    private func updateBudget(from value: String) {
+        guard let cents = parsedCents(value) else { return }
+        budgetCents = cents
+    }
+
+    private func parsedCents(_ value: String) -> Int? {
+        let cleaned = value.replacingOccurrences(of: "$", with: "").replacingOccurrences(of: ",", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard cleaned.range(of: #"^\d{1,3}(?:\.\d{0,2})?$"#, options: .regularExpression) != nil,
+              let amount = Decimal(string: cleaned, locale: Locale(identifier: "en_US_POSIX")) else { return nil }
+        let cents = NSDecimalNumber(decimal: amount * 100).intValue
+        return (2_000...50_000).contains(cents) ? cents : nil
     }
 }
 

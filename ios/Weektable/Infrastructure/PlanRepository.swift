@@ -10,6 +10,20 @@ protocol PlanRepository: Sendable {
     func updateGroceryState(planID: String, state: GroceryState) async throws -> MealPlan
 }
 
+actor UnavailablePlanRepository: PlanRepository {
+    let reason: String
+    init(reason: String) { self.reason = reason }
+    func findStores(postalCode: String) async throws -> [Store] { throw APIError.configuration(reason) }
+    func createPlan(request: PlannerRequest, idempotencyKey: String) async throws -> GenerationJob { throw APIError.configuration(reason) }
+    func generationUpdates(jobID: String) async -> AsyncThrowingStream<GenerationUpdate, Error> {
+        AsyncThrowingStream { $0.finish(throwing: APIError.configuration(reason)) }
+    }
+    func plan(id: String) async throws -> MealPlan { throw APIError.configuration(reason) }
+    func swapPreviews(planID: String, mealID: String) async throws -> [SwapPreview] { throw APIError.configuration(reason) }
+    func applySwap(planID: String, mealID: String, previewID: String) async throws -> MealPlan { throw APIError.configuration(reason) }
+    func updateGroceryState(planID: String, state: GroceryState) async throws -> MealPlan { throw APIError.configuration(reason) }
+}
+
 actor DemoPlanRepository: PlanRepository {
     private var currentPlan = DemoData.plan
     private var previewsByID: [String: SwapPreview] = [:]

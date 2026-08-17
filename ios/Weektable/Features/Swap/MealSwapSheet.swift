@@ -68,8 +68,7 @@ struct MealSwapSheet: View {
     private func swapCard(_ preview: SwapPreview) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 12) {
-                Image(preview.meal.imageAssetName)
-                    .resizable().scaledToFill()
+                MealPhoto(meal: preview.meal)
                     .frame(width: 88, height: 88).clipped()
                     .clipShape(RoundedRectangle(cornerRadius: 14))
                     .accessibilityHidden(true)

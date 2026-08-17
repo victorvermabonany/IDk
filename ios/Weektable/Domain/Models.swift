@@ -169,7 +169,7 @@ struct Meal: Codable, Hashable, Identifiable, Sendable {
 
     var totalMinutes: Int { prepMinutes + cookMinutes }
 
-    var imageAssetName: String {
+    var specificImageAssetName: String? {
         switch title.lowercased() {
         case let value where value.contains("pesto rigatoni"): "meal-pesto-rigatoni"
         case let value where value.contains("chicken tacos"): "meal-crispy-chicken-tacos"
@@ -178,9 +178,11 @@ struct Meal: Codable, Hashable, Identifiable, Sendable {
         case let value where value.contains("sausage") && value.contains("peppers"): "meal-sausage-peppers"
         case let value where value.contains("turkey rigatoni"): "meal-turkey-rigatoni"
         case let value where value.contains("black bean") && value.contains("quesadilla"): "meal-black-bean-quesadillas"
-        default: "weektable-dinners"
+        default: nil
         }
     }
+
+    var imageAssetName: String { specificImageAssetName ?? "weektable-dinners" }
 }
 
 enum Department: String, Codable, CaseIterable, Identifiable, Hashable, Sendable {

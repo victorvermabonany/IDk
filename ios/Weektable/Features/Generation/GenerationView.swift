@@ -62,7 +62,7 @@ struct GenerationView: View {
                         .frame(maxWidth: .infinity, minHeight: 50)
                 }
 
-                Label("Prices and package quantities come from the grocery catalog, never from the model.", systemImage: "checkmark.shield")
+                Label("Estimated complete-package prices come from the grocery catalog, never from the model. Check current shelf prices and labels.", systemImage: "checkmark.shield")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 

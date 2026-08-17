@@ -3,9 +3,9 @@ import Foundation
 enum DemoData {
     static let store = Store(
         id: "demo-kroger-45202",
-        name: "Kroger · Downtown sample catalog",
-        retailer: "Kroger family",
-        address: "Cincinnati, OH 45202",
+        name: "Central Market · Estimated catalog",
+        retailer: "Weektable estimated catalog",
+        address: "Sample market for ZIP 45202",
         zipCode: "45202",
         priceKind: .fixture
     )

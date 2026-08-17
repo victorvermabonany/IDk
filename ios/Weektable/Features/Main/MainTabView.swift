@@ -35,10 +35,12 @@ struct MainTabView: View {
                 .presentationCornerRadius(28)
         }
         .sheet(item: $appModel.paywallTrigger) { feature in
-            PaywallView(appModel: appModel, feature: feature)
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
-                .presentationCornerRadius(30)
+            if FeatureFlags.subscriptionsEnabled {
+                PaywallView(appModel: appModel, feature: feature)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+                    .presentationCornerRadius(30)
+            }
         }
         .sheet(isPresented: $appModel.settingsPresented) {
             NavigationStack {

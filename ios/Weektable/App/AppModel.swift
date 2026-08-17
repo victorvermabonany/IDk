@@ -48,6 +48,7 @@ final class AppModel {
     var entitlementCache = EntitlementCache()
     var availableStores: [Store] = []
     var storeSearchState: StoreSearchState = .idle
+    var storeErrorMessage: String?
 
     let persistence: PersistenceController
     let subscriptions: SubscriptionService
@@ -70,6 +71,7 @@ final class AppModel {
 
     func prepareForUse() async {
         await analytics.track(.appOpened)
+        guard FeatureFlags.subscriptionsEnabled else { return }
         await subscriptions.prepare()
         entitlementCache = EntitlementCache(
             productIDs: subscriptions.verifiedProductIDs,
@@ -92,6 +94,7 @@ final class AppModel {
             return
         }
         storeSearchState = .loading
+        storeErrorMessage = nil
         do {
             let stores = try await repository.findStores(postalCode: postalCode)
             availableStores = stores
@@ -102,6 +105,7 @@ final class AppModel {
         } catch {
             availableStores = []
             storeSearchState = .failed
+            storeErrorMessage = userFacingMessage(for: error)
         }
     }
 
@@ -201,7 +205,7 @@ final class AppModel {
     }
 
     func openSwap(for meal: Meal) {
-        guard subscriptions.isPro || completedSwapCount == 0 else {
+        guard !FeatureFlags.subscriptionsEnabled || subscriptions.isPro || completedSwapCount == 0 else {
             presentPaywall(for: .additionalSwap)
             return
         }
@@ -254,7 +258,7 @@ final class AppModel {
     func dismissSwap() { swapMeal = nil }
 
     func planAnotherWeek() {
-        guard subscriptions.isPro || completedPlanCount == 0 else {
+        guard !FeatureFlags.subscriptionsEnabled || subscriptions.isPro || completedPlanCount == 0 else {
             presentPaywall(for: .anotherWeek)
             return
         }
@@ -384,11 +388,15 @@ final class AppModel {
         }
         if let apiError = error as? APIError {
             switch apiError {
+            case .configuration(let message):
+                return message
             case .invalidResponse:
                 return "Weektable received an incomplete response. Your answers are saved—please try again."
             case .server(let status, _):
                 if status == 409 { return "These choices could not produce a safe week within the budget. Review your answers and try again." }
                 if status == 422 { return "One or more choices need attention. Review your planner answers and try again." }
+                if status == 429 { return "Weektable is receiving many requests. Your answers are saved—wait a moment and try again." }
+                if status == 404 { return "This saved plan has expired. Your preferences are still saved, so you can build a fresh week." }
                 if status >= 500 { return "Weektable is temporarily unavailable. Your answers are saved, so you can retry shortly." }
             }
         }
