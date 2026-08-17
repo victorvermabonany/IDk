@@ -38,7 +38,7 @@ jobs:
           xcodebuild test \
             -project Weektable.xcodeproj \
             -scheme Weektable \
-            -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest' \
+            -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.5' \
             -only-testing:WeektableTests \
             CODE_SIGNING_ALLOWED=NO
 
