@@ -8,12 +8,13 @@ export function SupportForm() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setState("sending");
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     try {
       const response = await fetch("/v1/support-requests", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contactEmail: form.get("email"), message: form.get("message") }) });
       if (!response.ok) throw new Error("Support request failed");
       const result = await response.json() as { ticketId: string };
-      setTicketID(result.ticketId); setState("sent"); event.currentTarget.reset();
+      setTicketID(result.ticketId); setState("sent"); formElement.reset();
     } catch { setState("error"); }
   }
 
