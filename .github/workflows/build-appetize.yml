@@ -94,7 +94,13 @@ jobs:
       - name: Validate Release configuration contract
         working-directory: ios
         run: |
-          if CONFIGURATION=Release bash Scripts/validate-release-config.sh 2>/dev/null; then
+          if CONFIGURATION=Release \
+             COVE_RUNTIME_MODE= \
+             COVE_API_BASE_URL= \
+             COVE_PRIVACY_URL= \
+             COVE_TERMS_URL= \
+             COVE_SUPPORT_URL= \
+             bash Scripts/validate-release-config.sh 2>/dev/null; then
             echo "Release validation unexpectedly accepted missing values" >&2
             exit 1
           fi
