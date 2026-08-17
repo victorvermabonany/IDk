@@ -3,7 +3,7 @@ import type { GroceryProvider } from "./types";
 
 export const fixtureGroceryProvider: GroceryProvider = {
   id: "fixture",
-  displayName: "Weektable estimated catalog",
+  displayName: "Cove development fixture",
   async findStores(zipCode) {
     return DEMO_STORES.map((store) => ({ ...store, zipCode, address: `Cincinnati, OH ${zipCode}` }));
   },

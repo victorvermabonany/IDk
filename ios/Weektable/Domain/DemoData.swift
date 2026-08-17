@@ -4,7 +4,7 @@ enum DemoData {
     static let store = Store(
         id: "demo-kroger-45202",
         name: "Central Market · Estimated catalog",
-        retailer: "Weektable estimated catalog",
+        retailer: "Cove development fixture",
         address: "Sample market for ZIP 45202",
         zipCode: "45202",
         priceKind: .fixture
@@ -13,8 +13,8 @@ enum DemoData {
     static let valueStore = Store(
         id: "demo-value-45202",
         providerStoreID: "fixture-value-45202",
-        name: "Weektable Value Market · Sample catalog",
-        retailer: "Weektable Value Market",
+        name: "Cove value fixture · Sample catalog",
+        retailer: "Cove development fixture",
         address: "Cincinnati, OH 45202",
         zipCode: "45202",
         priceKind: .fixture

@@ -111,9 +111,12 @@ actor APIPlanRepository: PlanRepository {
             let task = Task {
                 do {
                     var finished = false
+                    var delivered = Set<String>()
                     while !finished {
                         let response: UpdatesEnvelope = try await client.send("/v1/generation-jobs/\(jobID)")
                         for update in response.updates {
+                            let signature = "\(update.stage.rawValue):\(update.progress):\(update.completedPlanID ?? "")"
+                            guard delivered.insert(signature).inserted else { continue }
                             continuation.yield(update)
                             finished = update.completedPlanID != nil
                         }

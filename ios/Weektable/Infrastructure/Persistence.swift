@@ -32,7 +32,7 @@ final class PersistenceController {
                     configurations: ModelConfiguration(isStoredInMemoryOnly: true)
                 )
             } catch {
-                preconditionFailure("Weektable could not create a recovery data store.")
+                preconditionFailure("Cove could not create a recovery data store.")
             }
         }
         context = ModelContext(container)
@@ -69,6 +69,7 @@ enum PersistenceKey {
     static let plannerDraft = "planner-draft"
     static let cachedPlan = "cached-plan"
     static let generationJob = "generation-job"
+    static let generationSubmissionKey = "generation-submission-key"
     static let groceryState = "grocery-state"
     static let hasCompletedWelcome = "has-completed-welcome"
     static let completedPlanCount = "completed-plan-count"

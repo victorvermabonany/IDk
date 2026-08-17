@@ -1,13 +1,5 @@
-import { SiteHeader } from "@/components/site-header";
-import { WeeklyPlan } from "@/components/weekly-plan";
-import { DEFAULT_PLANNER_REQUEST, generatePlan } from "@/domain/planner-service";
+import { redirect } from "next/navigation";
 
 export default async function DemoPlanPage() {
-  const plan = await generatePlan(DEFAULT_PLANNER_REQUEST);
-  return (
-    <>
-      <SiteHeader backHref="/plan" />
-      <WeeklyPlan initialPlan={plan} />
-    </>
-  );
+  redirect("/plan");
 }

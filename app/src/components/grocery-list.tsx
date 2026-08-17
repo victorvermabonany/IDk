@@ -23,13 +23,13 @@ export function GroceryList({ initialPlan }: { initialPlan: MealPlan }) {
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      const storedPlan = sessionStorage.getItem("weektable:plan");
+      const storedPlan = sessionStorage.getItem("cove:plan") ?? sessionStorage.getItem("weektable:plan");
       if (storedPlan) {
         try {
-          const nextPlan = JSON.parse(storedPlan) as MealPlan;
+          const nextPlan = hydratePlan(JSON.parse(storedPlan) as APIPlan);
           setPlan(nextPlan);
           setOwned(nextPlan.basket.filter((item) => item.pantryStatus === "already_have").map((item) => item.id));
-        } catch { sessionStorage.removeItem("weektable:plan"); }
+        } catch { sessionStorage.removeItem("cove:plan"); sessionStorage.removeItem("weektable:plan"); }
       }
       const storedChecked = localStorage.getItem("weektable:grocery-checked");
       if (storedChecked) {
@@ -47,6 +47,8 @@ export function GroceryList({ initialPlan }: { initialPlan: MealPlan }) {
     department,
     items: plan.basket.filter((item) => (item.product?.department ?? "Other") === department),
   })).filter((group) => group.items.length > 0);
+  const pricing = plan.pricingProvenance;
+  const livePricing = pricing?.pricingMode === "live";
 
   async function synchronizeGroceryState(nextChecked: string[], nextOwned: string[]) {
     const response = await fetch(`/v1/plans/${plan.id}/grocery-state`, {
@@ -59,7 +61,7 @@ export function GroceryList({ initialPlan }: { initialPlan: MealPlan }) {
     const nextPlan = hydratePlan(payload.plan);
     setPlan(nextPlan);
     setOwned(nextPlan.basket.filter((item) => item.pantryStatus === "already_have").map((item) => item.id));
-    sessionStorage.setItem("weektable:plan", JSON.stringify(nextPlan));
+    sessionStorage.setItem("cove:plan", JSON.stringify(nextPlan));
   }
 
   async function toggleChecked(id: string) {
@@ -87,14 +89,14 @@ export function GroceryList({ initialPlan }: { initialPlan: MealPlan }) {
 
   async function shareList() {
     const text = [
-      "Weektable grocery list",
+      "Cove grocery list",
       ...groups.flatMap((group) => [group.department.toUpperCase(), ...group.items.filter((item) => !owned.includes(item.id)).map((item) => `- ${item.product?.name ?? item.displayName} · ${item.product?.displayPackage ?? "price unavailable"}`)]),
       `Estimated total: ${formatMoney(total)}`,
       "Estimated complete-package prices for planning; verify current shelf prices and allergen labels.",
     ].join("\n");
     try {
       const canShare = "share" in navigator;
-      if (canShare) await navigator.share({ title: "Weektable grocery list", text });
+      if (canShare) await navigator.share({ title: "Cove grocery list", text });
       else await navigator.clipboard.writeText(text);
       setShareStatus(canShare ? "Shared" : "Copied to clipboard");
     } catch { setShareStatus("Sharing was canceled"); }
@@ -110,7 +112,7 @@ export function GroceryList({ initialPlan }: { initialPlan: MealPlan }) {
       </header>
 
       <div className="catalog-disclosure">
-        <div className="page-shell"><strong>Estimated catalog</strong><span>Estimated complete-package prices for planning. Verify current shelf prices and all labels.</span></div>
+        <div className="page-shell"><strong>{livePricing ? `${pricing?.providerName ?? "Provider"} pricing` : pricing?.pricingMode === "fixture" ? "Development fixture" : "Estimated basket"}</strong><span>{livePricing ? `Provider-listed prices for ${pricing?.storeName ?? plan.store.name}; verify current shelf prices and all labels.` : "Cove complete-package estimates for planning. Prices may differ at your store."}</span></div>
       </div>
 
       <div className="grocery-layout page-shell">
@@ -153,7 +155,7 @@ export function GroceryList({ initialPlan }: { initialPlan: MealPlan }) {
           <div className="grocery-aside__summary"><span>Estimated total</span><strong>{formatMoney(total)}</strong><p>{formatMoney(plan.budgetCents - total)} below budget</p><div className="budget-rule"><span style={{ width: `${Math.min(100, (total / plan.budgetCents) * 100)}%` }} /></div></div>
           <button className="button-secondary button-block" type="button" onClick={shareList}>Copy or share list</button>
           {shareStatus ? <p role="status" className="share-status">{shareStatus}</p> : null}
-          <p className="grocery-aside__note">Variable-weight items and in-store prices may differ. Weektable keeps a budget buffer for that reason.</p>
+          <p className="grocery-aside__note">Variable-weight items and in-store prices may differ. Cove keeps a budget buffer for that reason.</p>
         </aside>
       </div>
     </main>

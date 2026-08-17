@@ -53,7 +53,7 @@ actor APIClient {
         request.httpMethod = method
         request.timeoutInterval = 60
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue(DeviceIdentifier.value, forHTTPHeaderField: "X-Weektable-Device-ID")
+        request.setValue(DeviceIdentifier.value, forHTTPHeaderField: "X-Cove-Device-ID")
         if let body {
             request.httpBody = try encoder.encode(AnyEncodable(body))
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -65,13 +65,31 @@ actor APIClient {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
 
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
-        guard (200..<300).contains(http.statusCode) else {
-            let envelope = try? decoder.decode(APIErrorEnvelope.self, from: data)
-            throw APIError.server(status: http.statusCode, message: envelope?.error.message ?? "Request failed.")
+        let mayRetry = method == "GET" || method == "PATCH" || idempotencyKey != nil
+        for attempt in 0...1 {
+            do {
+                let (data, response) = try await session.data(for: request)
+                guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+                if (200..<300).contains(http.statusCode) {
+                    return try decoder.decode(Response.self, from: data)
+                }
+                if attempt == 0, mayRetry, [408, 429, 500, 502, 503, 504].contains(http.statusCode) {
+                    let retrySeconds = min(2.0, Double(http.value(forHTTPHeaderField: "Retry-After") ?? "") ?? 0.5)
+                    try await Task.sleep(for: .seconds(retrySeconds))
+                    continue
+                }
+                let envelope = try? decoder.decode(APIErrorEnvelope.self, from: data)
+                throw APIError.server(status: http.statusCode, message: envelope?.error.message ?? "Request failed.")
+            } catch {
+                if Task.isCancelled { throw CancellationError() }
+                if attempt == 0, mayRetry, error is URLError {
+                    try await Task.sleep(for: .milliseconds(500))
+                    continue
+                }
+                throw error
+            }
         }
-        return try decoder.decode(Response.self, from: data)
+        throw APIError.invalidResponse
     }
 
     func sendEmpty(
@@ -86,7 +104,7 @@ actor APIClient {
         request.httpBody = try encoder.encode(AnyEncodable(body))
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue(DeviceIdentifier.value, forHTTPHeaderField: "X-Weektable-Device-ID")
+        request.setValue(DeviceIdentifier.value, forHTTPHeaderField: "X-Cove-Device-ID")
         if let token = await sessionToken() {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
@@ -101,7 +119,11 @@ actor APIClient {
 
 private enum DeviceIdentifier {
     static let value: String = {
-        let key = "weektable.device-id"
+        let key = "cove.device-id"
+        if let legacy = UserDefaults.standard.string(forKey: "weektable.device-id") {
+            UserDefaults.standard.set(legacy, forKey: key)
+            return legacy
+        }
         if let saved = UserDefaults.standard.string(forKey: key) { return saved }
         let created = UUID().uuidString
         UserDefaults.standard.set(created, forKey: key)

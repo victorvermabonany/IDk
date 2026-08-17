@@ -57,7 +57,7 @@ final class AppModel {
     private var generationTask: Task<Void, Never>?
 
     init(
-        repository: any PlanRepository = DemoPlanRepository(),
+        repository: any PlanRepository,
         persistence: PersistenceController,
         subscriptions: SubscriptionService,
         analytics: any AnalyticsClient = NoOpAnalyticsClient()
@@ -132,11 +132,15 @@ final class AppModel {
         generationTask = Task { [weak self] in
             guard let self else { return }
             do {
-                let job = try await repository.createPlan(request: request, idempotencyKey: UUID().uuidString)
+                let idempotencyKey = (try? persistence.load(String.self, key: PersistenceKey.generationSubmissionKey)) ?? UUID().uuidString
+                try? persistence.save(idempotencyKey, key: PersistenceKey.generationSubmissionKey)
+                let job = try await repository.createPlan(request: request, idempotencyKey: idempotencyKey)
                 pendingGenerationJob = job
                 try? persistence.save(job, key: PersistenceKey.generationJob)
+                try? persistence.remove(key: PersistenceKey.generationSubmissionKey)
                 try await observeGeneration(job)
             } catch {
+                clearTerminalGenerationJob(for: error)
                 generationError = userFacingMessage(for: error)
                 await analytics.track(.generationFailed)
                 Haptics.warning()
@@ -151,6 +155,7 @@ final class AppModel {
             do {
                 try await observeGeneration(job)
             } catch {
+                clearTerminalGenerationJob(for: error)
                 generationError = userFacingMessage(for: error)
                 Haptics.warning()
             }
@@ -170,6 +175,7 @@ final class AppModel {
         generationTask = nil
         pendingGenerationJob = nil
         try? persistence.remove(key: PersistenceKey.generationJob)
+        try? persistence.remove(key: PersistenceKey.generationSubmissionKey)
         rootFlow = .planner
     }
 
@@ -296,6 +302,7 @@ final class AppModel {
         plan = generatedPlan
         try? persistence.save(generatedPlan, key: PersistenceKey.cachedPlan)
         try? persistence.remove(key: PersistenceKey.generationJob)
+        try? persistence.remove(key: PersistenceKey.generationSubmissionKey)
         pendingGenerationJob = nil
         generationTask = nil
         groceryState = GroceryState(
@@ -391,18 +398,27 @@ final class AppModel {
             case .configuration(let message):
                 return message
             case .invalidResponse:
-                return "Weektable received an incomplete response. Your answers are saved—please try again."
+                return "Cove received an incomplete response. Your answers are saved—please try again."
             case .server(let status, _):
                 if status == 409 { return "These choices could not produce a safe week within the budget. Review your answers and try again." }
                 if status == 422 { return "One or more choices need attention. Review your planner answers and try again." }
-                if status == 429 { return "Weektable is receiving many requests. Your answers are saved—wait a moment and try again." }
+                if status == 429 { return "Cove is receiving many requests. Your answers are saved—wait a moment and try again." }
                 if status == 404 { return "This saved plan has expired. Your preferences are still saved, so you can build a fresh week." }
-                if status >= 500 { return "Weektable is temporarily unavailable. Your answers are saved, so you can retry shortly." }
+                if status >= 500 { return "Cove is temporarily unavailable. Your answers are saved, so you can retry shortly." }
             }
         }
         if error is URLError {
             return "You appear to be offline. Your answers are saved and generation can resume when you reconnect."
         }
         return "Your week could not be completed. Your answers are saved—please try again."
+    }
+
+    private func clearTerminalGenerationJob(for error: Error) {
+        guard let apiError = error as? APIError,
+              case let .server(status, _) = apiError,
+              status == 404 || status == 422 || status == 502 else { return }
+        pendingGenerationJob = nil
+        try? persistence.remove(key: PersistenceKey.generationJob)
+        try? persistence.remove(key: PersistenceKey.generationSubmissionKey)
     }
 }

@@ -24,7 +24,7 @@ struct WeekHomeView: View {
                         )
                     }
 
-                    PriceSourceNotice(priceKind: plan.priceKind)
+                    PriceSourceNotice(plan: plan)
                         .padding(.bottom, 20)
                 } else {
                     ContentUnavailableView(
@@ -191,13 +191,11 @@ private struct MealCard: View {
 }
 
 struct PriceSourceNotice: View {
-    let priceKind: PriceKind
+    let plan: MealPlan
 
     var body: some View {
         Label {
-            Text(priceKind == .fixture
-                 ? "Estimated complete-package prices for planning. Verify current shelf prices and labels."
-                 : "Estimated complete-package prices · \(priceKind.rawValue.capitalized) source. Verify shelf prices and labels.")
+            Text(message)
         } icon: {
             Image(systemName: "info.circle.fill")
         }
@@ -206,5 +204,15 @@ struct PriceSourceNotice: View {
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(WeektableTheme.surface, in: RoundedRectangle(cornerRadius: WeektableTheme.controlRadius))
+    }
+
+    private var message: String {
+        if plan.pricingProvenance?.pricingMode == "live" {
+            return "\(plan.pricingProvenance?.providerName ?? "Provider") listed prices for \(plan.pricingProvenance?.storeName ?? plan.store.name). Verify current shelf prices and labels."
+        }
+        if plan.pricingProvenance?.pricingMode == "fixture" || plan.priceKind == .fixture {
+            return "Development fixture prices. Not current store pricing."
+        }
+        return "Estimated basket · Cove complete-package estimates. Prices may differ at your store."
     }
 }

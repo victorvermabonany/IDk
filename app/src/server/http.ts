@@ -16,7 +16,7 @@ export function problemResponse(error: unknown) {
   }
   if (error instanceof ServiceConfigurationError) {
     logEvent("error", "service.configuration_invalid", { fields: error.missingConfiguration });
-    return Response.json({ error: { code: "SERVICE_UNAVAILABLE", message: "Weektable is temporarily unavailable. Please try again later." } }, { status: 503 });
+    return Response.json({ error: { code: "SERVICE_UNAVAILABLE", message: "Cove is temporarily unavailable. Please try again later." } }, { status: 503 });
   }
   logEvent("error", "api.unhandled_error", { category: error instanceof Error ? error.name : "UnknownError" });
   return Response.json({ error: { code: "GENERATION_FAILED", message: "We could not finish this plan. Your planner answers are still saved." } }, { status: 500 });

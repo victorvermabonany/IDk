@@ -2,8 +2,9 @@ import { randomUUID } from "node:crypto";
 import { buildBasket, basketTotal, normalizeIngredientName, priceCoverage, scaleMeal } from "./engine";
 import { mealConstraintIssues, preferenceScore, requiredServings, validatePlanOrThrow } from "./constraints";
 import { DEMO_MEALS, DEMO_STORE, DEMO_STORES } from "./fixtures";
-import { fixtureGroceryProvider } from "./fixture-provider";
-import { PlanGenerationError, type BasketItem, type Meal, type MealPlan, type PlannerRequest, type ProviderStore } from "./types";
+import { providerForStore } from "./grocery-providers";
+import { budgetTargetPercent, runtimeMode } from "@/server/runtime-config";
+import { PlanGenerationError, type BasketItem, type GroceryProvider, type Meal, type MealPlan, type PlannerRequest, type ProviderStore } from "./types";
 
 function combinations<T>(items: T[], count: number): T[][] {
   const result: T[][] = [];
@@ -17,20 +18,56 @@ function combinations<T>(items: T[], count: number): T[][] {
   return result;
 }
 
-async function resolveStore(request: PlannerRequest): Promise<ProviderStore> {
-  const stores = await fixtureGroceryProvider.findStores(request.store.postalCode);
-  const store = stores.find((candidate) => candidate.id === request.store.id && candidate.providerStoreId === request.store.locationId);
-  if (!store) throw new PlanGenerationError("PROVIDER_UNAVAILABLE", "That store location is not available for the selected ZIP code.", ["Choose another supported store"]);
-  return store;
+function cachedProvider(provider: GroceryProvider): GroceryProvider {
+  const searches = new Map<string, ReturnType<GroceryProvider["searchProducts"]>>();
+  const products = new Map<string, ReturnType<GroceryProvider["getProduct"]>>();
+  return {
+    id: provider.id,
+    displayName: provider.displayName,
+    findStores: (zipCode) => provider.findStores(zipCode),
+    searchProducts(input) {
+      const key = `${input.storeId}:${input.ingredientId}`;
+      let pending = searches.get(key);
+      if (!pending) {
+        pending = provider.searchProducts(input);
+        searches.set(key, pending);
+      }
+      return pending;
+    },
+    getProduct(input) {
+      const key = `${input.storeId}:${input.productId}`;
+      let pending = products.get(key);
+      if (!pending) {
+        pending = provider.getProduct(input);
+        products.set(key, pending);
+      }
+      return pending;
+    },
+  };
 }
 
-async function priceCombination(meals: Meal[], request: PlannerRequest, store: ProviderStore) {
+async function resolveStore(request: PlannerRequest): Promise<{ store: ProviderStore; provider: GroceryProvider }> {
+  let provider: GroceryProvider;
+  try { provider = providerForStore(request.store); }
+  catch {
+    throw new PlanGenerationError("PROVIDER_UNAVAILABLE", "That pricing source is not configured for this Cove environment.", ["Choose another store or estimate"]);
+  }
+  const stores = await provider.findStores(request.store.postalCode);
+  const store = stores.find((candidate) => candidate.id === request.store.id && candidate.providerStoreId === request.store.locationId);
+  if (!store) throw new PlanGenerationError("PROVIDER_UNAVAILABLE", "That store location is not available for the selected ZIP code.", ["Choose another supported store"]);
+  if (runtimeMode() !== "development_fixture" && store.priceKind === "fixture") {
+    throw new PlanGenerationError("PROVIDER_UNAVAILABLE", "Fixture pricing is disabled in this Cove environment.");
+  }
+  return { store, provider: cachedProvider(provider) };
+}
+
+async function priceCombination(meals: Meal[], request: PlannerRequest, store: ProviderStore, provider: GroceryProvider) {
   const pantryIds = request.pantryItems.map(normalizeIngredientName);
-  const basket = await buildBasket({ meals, provider: fixtureGroceryProvider, storeId: store.id, pantryIngredientIds: pantryIds });
+  const basket = await buildBasket({ meals, provider, storeId: store.id, pantryIngredientIds: pantryIds });
   return { basket, coverage: priceCoverage(basket), total: basketTotal(basket) };
 }
 
-async function optimizeCandidates(candidates: Meal[], request: PlannerRequest, store: ProviderStore) {
+async function optimizeCandidates(candidates: Meal[], request: PlannerRequest, store: ProviderStore, provider: GroceryProvider) {
   const servings = requiredServings(request);
   const eligible = candidates
     .map((meal) => scaleMeal(meal, servings))
@@ -46,10 +83,11 @@ async function optimizeCandidates(candidates: Meal[], request: PlannerRequest, s
     );
   }
 
-  const target = Math.round(request.budgetCents * 0.94);
+  const targetPercent = budgetTargetPercent(store.priceKind);
+  const target = Math.round(request.budgetCents * targetPercent);
   let best: { meals: Meal[]; basket: BasketItem[]; coverage: number; total: number; score: number } | undefined;
   for (const mealSet of combinations(eligible, request.dinnerCount)) {
-    const priced = await priceCombination(mealSet, request, store);
+    const priced = await priceCombination(mealSet, request, store, provider);
     if (priced.coverage < 1 || priced.total > request.budgetCents) continue;
     const targetDistance = Math.abs(priced.total - target) / Math.max(1, request.budgetCents);
     const score = preferenceScore(mealSet, request) - targetDistance * 180;
@@ -81,23 +119,31 @@ async function candidatePool(request: PlannerRequest): Promise<Meal[]> {
   return DEMO_MEALS;
 }
 
-export async function generatePlan(request: PlannerRequest): Promise<MealPlan> {
-  const store = await resolveStore(request);
-  const optimized = await optimizeCandidates(await candidatePool(request), request, store);
+export async function generatePlan(request: PlannerRequest, planID: string = randomUUID()): Promise<MealPlan> {
+  const { store, provider } = await resolveStore(request);
+  const optimized = await optimizeCandidates(await candidatePool(request), request, store, provider);
   validatePlanOrThrow(optimized.meals, request);
   const observedTimes = optimized.basket.flatMap((item) => item.product ? [item.product.observedAt] : []);
   const createdAt = new Date().toISOString();
   return {
-    id: randomUUID(),
+    id: planID,
     title: `${request.dinnerCount} dinners for your week`,
     store,
     constraintsUsed: structuredClone(request),
     budgetCents: request.budgetCents,
-    internalTargetCents: Math.round(request.budgetCents * 0.94),
+    internalTargetCents: Math.round(request.budgetCents * budgetTargetPercent(store.priceKind)),
     estimatedTotalCents: optimized.total,
     priceCoverage: optimized.coverage,
     priceKind: store.priceKind,
     priceObservedAt: observedTimes.sort().at(-1) ?? createdAt,
+    pricingProvenance: {
+      pricingMode: store.priceKind === "live" || store.priceKind === "feed" ? "live" : store.priceKind,
+      provider: provider.id as "kroger" | "cove_estimate" | "fixture",
+      providerName: provider.displayName,
+      storeName: store.name,
+      providerStoreId: store.providerStoreId,
+      updatedAt: observedTimes.sort().at(-1) ?? createdAt,
+    },
     meals: optimized.meals,
     basket: optimized.basket,
     createdAt,

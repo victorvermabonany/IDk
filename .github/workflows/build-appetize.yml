@@ -1,4 +1,4 @@
-name: Build Weektable for Appetize
+name: Build Cove for Appetize
 
 on:
   workflow_dispatch:
@@ -53,10 +53,11 @@ jobs:
             exit 1
           fi
           CONFIGURATION=Release \
-          WEEKTABLE_API_BASE_URL=https://api.example.com \
-          WEEKTABLE_PRIVACY_URL=https://example.com/privacy \
-          WEEKTABLE_TERMS_URL=https://example.com/terms \
-          WEEKTABLE_SUPPORT_URL=https://example.com/support \
+          COVE_RUNTIME_MODE=PRODUCTION_LIVE \
+          COVE_API_BASE_URL=https://api.example.com \
+          COVE_PRIVACY_URL=https://example.com/privacy \
+          COVE_TERMS_URL=https://example.com/terms \
+          COVE_SUPPORT_URL=https://example.com/support \
           bash Scripts/validate-release-config.sh
 
       - name: Run Swift unit and UI tests
@@ -88,8 +89,8 @@ jobs:
       - name: Upload the Appetize-ready ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: Weektable-Appetize
-          path: ios/build/Weektable-Appetize.zip
+          name: Cove-Appetize
+          path: ios/build/Cove-Appetize.zip
           if-no-files-found: error
           retention-days: 14
 
@@ -97,7 +98,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Weektable-Xcode-Log
+          name: Cove-Xcode-Log
           path: ios/build/xcodebuild.log
           if-no-files-found: ignore
           retention-days: 14
@@ -106,7 +107,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Weektable-Xcode-Test-Log
+          name: Cove-Xcode-Test-Log
           path: ios/build/xcode-test.log
           if-no-files-found: ignore
           retention-days: 14

@@ -1,4 +1,4 @@
-# Weektable beta privacy data inventory
+# Cove beta privacy data inventory
 
 Operational inventory for App Store Connect privacy answers. It must be rechecked whenever analytics, authentication, payments, grocery providers, or support tooling changes.
 
@@ -12,4 +12,4 @@ Operational inventory for App Store Connect privacy answers. It must be rechecke
 | Operational event category, latency, safe error category | Diagnostics and service reliability | No | No | Hosting/log retention must be configured and documented before public launch |
 | Support email and message | Customer support | Yes, by submitted email | No | Up to 30 days |
 
-OpenAI receives constrained recipe-planning inputs when live planning is enabled. Complete payloads containing allergy, ZIP-code, preference, or custom-instruction values must not be written to Weektable structured logs. Weektable does not use beta data for advertising and does not sell it.
+OpenAI receives constrained recipe-planning inputs when live planning is enabled. Complete payloads containing allergy, ZIP-code, preference, or custom-instruction values must not be written to Cove structured logs. Cove does not use beta data for advertising and does not sell it.

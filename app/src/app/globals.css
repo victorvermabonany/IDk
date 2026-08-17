@@ -28,7 +28,7 @@
 .legal-note { font-size: .9rem; }
 
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; background: var(--oat); }
+html { scroll-behavior: smooth; background: var(--oat); overflow-x: clip; }
 
 body {
   margin: 0;
@@ -38,6 +38,7 @@ body {
   font-size: 16px;
   line-height: 1.5;
   text-rendering: optimizeLegibility;
+  overflow-x: clip;
 }
 
 a { color: inherit; text-decoration: none; }
@@ -219,12 +220,15 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .swap-sheet__header { display: flex; justify-content: space-between; gap: 24px; padding-bottom: 28px; border-bottom: 1px solid var(--ink); }
 .swap-sheet__header h2 { font-family: var(--font-display); font-size: 38px; font-weight: 430; line-height: 1; margin: 0; }
 .swap-sheet__header > button { width: 44px; height: 44px; border: 1px solid var(--ink); background: transparent; font-size: 28px; cursor: pointer; }
-.swap-options article { display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: center; border-bottom: 1px solid var(--rule); padding-block: 28px; }
+.swap-options article { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: 20px; align-items: center; border-bottom: 1px solid var(--rule); padding-block: 28px; }
+.swap-option__image { width: 112px; aspect-ratio: 4 / 3; border-radius: 12px; }
 .swap-options h3 { margin: 0; font-family: var(--font-display); font-size: 26px; font-weight: 430; }
 .swap-options p, .swap-loading, .swap-empty { color: var(--muted); font-size: 13px; }
 .swap-option__action { text-align: right; display: grid; gap: 12px; }
 .swap-option__action strong { font-variant-numeric: tabular-nums; }
 .swap-option__action .is-saving { color: var(--herb); }
+.swap-option__action small { color: var(--muted); }
+.swap-error { color: var(--tomato-deep); font-weight: 650; }
 
 /* Grocery store mode */
 .grocery-summary { background: var(--ink); color: var(--paper); }
@@ -352,7 +356,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .meal-meta span:not(:last-child)::after { display: none; }
   .week-actions { align-items: flex-start; flex-direction: column; }
   .swap-sheet { height: min(88vh, 760px); margin-top: auto; padding: 24px 20px; border-radius: 18px 18px 0 0; }
-  .swap-options article { grid-template-columns: 1fr; }
+  .swap-options article { grid-template-columns: 88px minmax(0, 1fr); gap: 14px; }
+  .swap-option__image { width: 88px; }
+  .swap-option__action { grid-column: 1 / -1; }
   .swap-option__action { grid-template-columns: 1fr auto; align-items: center; text-align: left; }
   .grocery-summary__inner { min-height: 190px; }
   .grocery-total strong { font-size: 38px; }

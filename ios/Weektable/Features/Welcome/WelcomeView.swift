@@ -38,12 +38,12 @@ struct WelcomeView: View {
 
     private var welcomeContent: some View {
         VStack(alignment: .leading, spacing: 16) {
-                Label("WEEKTABLE", systemImage: "fork.knife")
+                Label("COVE", systemImage: "fork.knife")
                     .font(.caption.weight(.black))
                     .tracking(1.2)
                     .foregroundStyle(.white.opacity(0.9))
 
-                Text("Your week of food, figured out.")
+                Text("Your week, planned.")
                     .font(dynamicTypeSize.isAccessibilitySize ? .title.bold() : .system(size: 38, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
                     .accessibilityAddTraits(.isHeader)

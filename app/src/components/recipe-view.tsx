@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { FoodImage } from "@/components/food-image";
 import type { MealPlan } from "@/domain/types";
+import { hydratePlan, type APIPlan } from "@/lib/api-plan";
 import { formatMoney, formatQuantity } from "@/lib/format";
 
 export function RecipeView({ initialPlan, mealId }: { initialPlan: MealPlan; mealId: string }) {
@@ -12,9 +13,9 @@ export function RecipeView({ initialPlan, mealId }: { initialPlan: MealPlan; mea
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      const stored = sessionStorage.getItem("weektable:plan");
+      const stored = sessionStorage.getItem("cove:plan") ?? sessionStorage.getItem("weektable:plan");
       if (!stored) return;
-      try { setPlan(JSON.parse(stored) as MealPlan); } catch { sessionStorage.removeItem("weektable:plan"); }
+      try { setPlan(hydratePlan(JSON.parse(stored) as APIPlan)); } catch { sessionStorage.removeItem("cove:plan"); sessionStorage.removeItem("weektable:plan"); }
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
@@ -52,11 +53,11 @@ export function RecipeView({ initialPlan, mealId }: { initialPlan: MealPlan; mea
           <h2>Make dinner</h2>
           <ol>{meal.instructions.map((instruction, index) => <li key={instruction}><span>{String(index + 1).padStart(2, "0")}</span><p>{instruction}</p></li>)}</ol>
           <div className="nutrition-line"><span>Approximate recipe nutrition</span><strong>~{meal.calories} kcal · ~{meal.proteinGrams}g protein / serving</strong><small>Planning estimate, not medical nutrition guidance.</small></div>
-          <div className="recipe-actions"><Link className="button-primary" href="/plans/demo/groceries">Open grocery list</Link><Link className="button-secondary" href="/plans/demo">Back to the week</Link></div>
+          <div className="recipe-actions"><Link className="button-primary" href={`/plans/${plan.id}/groceries`}>Open grocery list</Link><Link className="button-secondary" href={`/plans/${plan.id}`}>Back to the week</Link></div>
         </section>
       </div>
 
-      <section className="allergen-reminder"><div className="page-shell"><strong>Cook with care.</strong><p>Weektable treats selected allergies as hard recipe constraints, but packaged-food labels and cross-contact warnings must still be verified.</p></div></section>
+      <section className="allergen-reminder"><div className="page-shell"><strong>Cook with care.</strong><p>Cove treats selected allergies as hard recipe constraints, but packaged-food labels and cross-contact warnings must still be verified.</p></div></section>
     </main>
   );
 }

@@ -1,5 +1,5 @@
 import { PlanGenerationError, plannerRequestSchema } from "@/domain/types";
-import { readPlan, startGeneration } from "@/server/plan-store";
+import { readJob, readPlan, runGeneration, startGeneration } from "@/server/plan-store";
 import { ZodError } from "zod";
 
 export async function POST(request: Request) {
@@ -7,7 +7,15 @@ export async function POST(request: Request) {
     const body: unknown = await request.json();
     const input = plannerRequestSchema.parse(body);
     const job = await startGeneration(input, request.headers.get("Idempotency-Key") ?? crypto.randomUUID());
-    const plan = readPlan(job.planId);
+    await runGeneration(job.id);
+    const completedJob = await readJob(job.id);
+    if (completedJob?.status === "failed") {
+      throw new PlanGenerationError(
+        completedJob.errorCode === "MODEL_FAILURE" ? "MODEL_FAILURE" : completedJob.errorCode === "PROVIDER_UNAVAILABLE" ? "PROVIDER_UNAVAILABLE" : "CONSTRAINT_CONFLICT",
+        completedJob.errorMessage ?? "Cove could not finish this plan.",
+      );
+    }
+    const plan = await readPlan(job.planId);
     if (!plan) throw new Error("Generated plan was not persisted.");
     return Response.json({ plan }, { status: 201 });
   } catch (error) {

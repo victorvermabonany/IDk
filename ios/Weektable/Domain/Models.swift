@@ -112,6 +112,20 @@ enum PriceKind: String, Codable, Hashable, Sendable {
     case live, feed, estimated, fixture
 }
 
+struct PricingProvenance: Codable, Equatable, Sendable {
+    let pricingMode: String
+    let provider: String
+    let providerName: String
+    let storeName: String
+    let providerStoreID: String
+    let updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case pricingMode, provider, providerName, storeName, updatedAt
+        case providerStoreID = "providerStoreId"
+    }
+}
+
 struct Store: Codable, Hashable, Sendable {
     let id: String
     let providerStoreID: String
@@ -178,6 +192,14 @@ struct Meal: Codable, Hashable, Identifiable, Sendable {
         case let value where value.contains("sausage") && value.contains("peppers"): "meal-sausage-peppers"
         case let value where value.contains("turkey rigatoni"): "meal-turkey-rigatoni"
         case let value where value.contains("black bean") && value.contains("quesadilla"): "meal-black-bean-quesadillas"
+        case let value where value.contains("tofu") && value.contains("rice"): "meal-tofu-rice-bowls"
+        case let value where value.contains("lentil") && value.contains("tomato"): "meal-lentil-tomato-bowls"
+        case let value where value.contains("chickpea") && value.contains("curry"): "meal-chickpea-coconut-curry"
+        case let value where value.contains("sweet potato") && value.contains("taco"): "meal-sweet-potato-black-bean-tacos"
+        case let value where value.contains("chickpea") && value.contains("quinoa"): "meal-mediterranean-chickpea-quinoa"
+        case let value where value.contains("tofu") && value.contains("quinoa"): "meal-tofu-quinoa-skillet"
+        case let value where value.contains("lentil") && value.contains("rice"): "meal-lentil-rice-pepper-bowls"
+        case let value where value.contains("egg") && value.contains("quinoa"): "meal-egg-quinoa-vegetable-bowls"
         default: nil
         }
     }
@@ -229,6 +251,7 @@ struct MealPlan: Codable, Equatable, Identifiable, Sendable {
     let priceCoverage: Double
     let priceKind: PriceKind
     let priceObservedAt: String
+    let pricingProvenance: PricingProvenance?
     var meals: [Meal]
     var basket: [BasketItem]
     let createdAt: String
@@ -237,7 +260,7 @@ struct MealPlan: Codable, Equatable, Identifiable, Sendable {
     init(
         id: String, title: String, store: Store, constraintsUsed: PlannerRequest = PlannerRequest(),
         budgetCents: Int, internalTargetCents: Int? = nil, estimatedTotalCents: Int,
-        priceCoverage: Double, priceKind: PriceKind, priceObservedAt: String = "",
+        priceCoverage: Double, priceKind: PriceKind, priceObservedAt: String = "", pricingProvenance: PricingProvenance? = nil,
         meals: [Meal], basket: [BasketItem], createdAt: String = "", safetyNotice: String = ""
     ) {
         self.id = id
@@ -250,6 +273,7 @@ struct MealPlan: Codable, Equatable, Identifiable, Sendable {
         self.priceCoverage = priceCoverage
         self.priceKind = priceKind
         self.priceObservedAt = priceObservedAt
+        self.pricingProvenance = pricingProvenance
         self.meals = meals
         self.basket = basket
         self.createdAt = createdAt

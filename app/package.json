@@ -1,5 +1,5 @@
 {
-  "name": "weektable",
+  "name": "cove",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:migrate": "node scripts/migrate.mjs"
   },
   "dependencies": {
     "next": "16.3.1",

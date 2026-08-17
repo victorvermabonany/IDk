@@ -114,7 +114,15 @@ export async function buildBasket(input: {
         storeId: input.storeId,
         ingredientId: requirement.ingredientId,
       });
-      const product = products.find((candidate) => candidate.availability !== "out_of_stock") ?? null;
+      const product = products.find((candidate) => {
+        if (candidate.availability === "out_of_stock") return false;
+        try {
+          solvePackageCount(requirement.quantity, requirement.unit, candidate);
+          return true;
+        } catch {
+          return false;
+        }
+      }) ?? null;
       const pantryStatus = pantry.has(requirement.ingredientId) ? "already_have" : "needed";
       let packageCount = 0;
       let totalPriceCents: number | null = pantryStatus === "already_have" ? 0 : null;

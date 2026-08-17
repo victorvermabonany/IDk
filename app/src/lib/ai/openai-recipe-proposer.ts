@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
+import { modelMaxOutputTokens, modelTimeoutMs } from "@/server/runtime-config";
 import { z } from "zod";
 
 import { DEMO_PRODUCTS } from "../../domain/fixtures";
@@ -32,11 +33,13 @@ const proposalSchema = z.object({
 function slug(value: string) { return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""); }
 
 export async function proposeMeals(request: PlannerRequest, repairFeedback?: string): Promise<Meal[]> {
-  const timeout = Math.min(120_000, Math.max(5_000, Number(process.env.WEEKTABLE_MODEL_TIMEOUT_MS ?? 45_000)));
-  const maxOutputTokens = Math.min(12_000, Math.max(1_000, Number(process.env.WEEKTABLE_MODEL_MAX_OUTPUT_TOKENS ?? 6_000)));
+  const timeout = modelTimeoutMs();
+  const maxOutputTokens = modelMaxOutputTokens();
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout, maxRetries: 1 });
-  const storeProducts = DEMO_PRODUCTS.filter((product) => product.storeId === request.store.id);
-  const availableCatalog = storeProducts.map((product) => ({
+  // This is a canonical recipe-ingredient vocabulary, not a source of prices.
+  // The selected grocery provider performs the authoritative product matching,
+  // availability check, package calculation, and pricing after generation.
+  const availableCatalog = schemaProducts.map((product) => ({
     ingredientId: product.ingredientId, name: product.name, package: product.displayPackage,
     recipeUnit: product.packageUnit, department: product.department,
   }));
@@ -51,7 +54,7 @@ export async function proposeMeals(request: PlannerRequest, repairFeedback?: str
           "You propose diverse practical weeknight dinner candidates for a grocery constraint engine.",
           "Allergies, vegetarian/vegan restrictions, servings, meal candidate count, total cooking time, positive quantities, and catalog ingredient IDs are hard constraints.",
           "Hard constraints always override custom instructions and preferences. Never invent prices, packages, products, availability, or nutrition provenance.",
-          "Use only ingredient IDs and recipe units in the supplied selected-store catalog.",
+          "Use only ingredient IDs and recipe units in the supplied canonical ingredient catalog.",
           "Treat prepMinutes plus cookMinutes as total cooking time. Prefer ingredient reuse, complete-package efficiency, cuisine preferences, and the requested nutrition style.",
           "Quick means fewer ingredients and simple methods. Budget-first means low-cost proteins and high reuse. Balanced means reasonable variety. Lighter is a style preference, not calorie restriction.",
           "Return structured recipe facts only.",
@@ -63,12 +66,12 @@ export async function proposeMeals(request: PlannerRequest, repairFeedback?: str
           candidateCount,
           requiredServingsPerDinner: requiredServings(request),
           constraints: request,
-          selectedStoreCatalog: availableCatalog,
+          canonicalIngredientCatalog: availableCatalog,
           repairFeedback: repairFeedback ?? null,
         }),
       },
     ],
-    text: { format: zodTextFormat(proposalSchema, "weektable_meal_candidates") },
+    text: { format: zodTextFormat(proposalSchema, "cove_meal_candidates") },
   }, { timeout });
   const parsed = response.output_parsed;
   if (!parsed || parsed.meals.length < request.dinnerCount) throw new Error("The model did not return enough structured candidates.");

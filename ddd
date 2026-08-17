@@ -1,4 +1,4 @@
-name: Build Weektable for Appetize
+name: Build Cove for Appetize
 
 on:
   workflow_dispatch:
@@ -30,8 +30,8 @@ jobs:
       - name: Upload the Appetize-ready ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: Weektable-Appetize
-          path: ios/build/Weektable-Appetize.zip
+          name: Cove-Appetize
+          path: ios/build/Cove-Appetize.zip
           if-no-files-found: error
           retention-days: 14
 
@@ -39,7 +39,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Weektable-Xcode-Log
+          name: Cove-Xcode-Log
           path: ios/build/xcodebuild.log
           if-no-files-found: ignore
           retention-days: 14

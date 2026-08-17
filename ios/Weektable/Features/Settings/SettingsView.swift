@@ -12,7 +12,7 @@ struct SettingsView: View {
                         .font(.system(size: 44))
                         .foregroundStyle(WeektableTheme.brand)
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Your Weektable").font(.headline)
+                        Text("Your Cove").font(.headline)
                         Text("Plans and shopping progress are saved on this iPhone")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
@@ -22,7 +22,7 @@ struct SettingsView: View {
             }
 
             if FeatureFlags.subscriptionsEnabled {
-                Section("Weektable Pro") {
+                Section("Cove Pro") {
                     NavigationLink {
                         SubscriptionSettingsView(appModel: appModel)
                     } label: {
@@ -48,15 +48,15 @@ struct SettingsView: View {
                     SettingsTextView(
                         title: "Prices and nutrition",
                         symbol: "info.circle",
-                        text: "Weektable uses estimated complete-package catalog prices for planning and identifies their source and observation time. Check current shelf prices and package labels. Nutrition values are estimates, not medical advice."
+                        text: "Cove identifies whether basket prices are provider-listed, Cove estimates, or development fixtures and records their observation time. Check current shelf prices and package labels. Nutrition values are estimates, not medical advice."
                     )
                 } label: {
                     Label("Prices and nutrition", systemImage: "info.circle")
                 }
 
-                if let url = AppConfiguration.privacyURL { Link("Privacy", destination: url).accessibilityHint("Opens the Weektable privacy page") }
-                if let url = AppConfiguration.termsURL { Link("Terms", destination: url).accessibilityHint("Opens the Weektable terms page") }
-                if let url = AppConfiguration.supportURL { Link("Support", destination: url).accessibilityHint("Opens Weektable support") }
+                if let url = AppConfiguration.privacyURL { Link("Privacy", destination: url).accessibilityHint("Opens the Cove privacy page") }
+                if let url = AppConfiguration.termsURL { Link("Terms", destination: url).accessibilityHint("Opens the Cove terms page") }
+                if let url = AppConfiguration.supportURL { Link("Support", destination: url).accessibilityHint("Opens Cove support") }
             }
 
             Section {
@@ -88,9 +88,9 @@ private struct SubscriptionSettingsView: View {
     var body: some View {
         List {
             Section {
-                LabeledContent("Current access", value: appModel.subscriptions.isPro ? "Weektable Pro" : "Free")
+                LabeledContent("Current access", value: appModel.subscriptions.isPro ? "Cove Pro" : "Free")
                 if !appModel.subscriptions.isPro {
-                    Button("View Weektable Pro") { showingPaywall = true }
+                    Button("View Cove Pro") { showingPaywall = true }
                 }
             }
             Section {
@@ -99,7 +99,7 @@ private struct SubscriptionSettingsView: View {
                         let result = await appModel.subscriptions.restorePurchases()
                         switch result {
                         case .purchased:
-                            statusMessage = "Weektable Pro has been restored."
+                            statusMessage = "Cove Pro has been restored."
                             Haptics.success()
                         case .failed(let message):
                             statusMessage = message

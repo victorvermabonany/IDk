@@ -4,7 +4,7 @@ export const DEMO_STORE: ProviderStore = {
   id: "demo-kroger-45202",
   providerStoreId: "fixture-45202",
   name: "Central Market · Estimated catalog",
-  retailer: "Weektable estimated catalog",
+  retailer: "Cove development fixture",
   address: "Sample market for ZIP 45202",
   zipCode: "45202",
   priceKind: "fixture",
@@ -26,7 +26,7 @@ function product(
 ): ProviderProduct {
   return {
     ...input,
-    brand: input.department === "Produce" ? "Fresh" : "Estimated catalog",
+    brand: input.department === "Produce" ? "Fresh produce fixture" : "Fixture catalog",
     provider: "fixture",
     providerProductId: `fixture-${input.id}`,
     storeId: DEMO_STORE.id,
@@ -76,7 +76,7 @@ export const VALUE_STORE: ProviderStore = {
   id: "demo-value-45202",
   providerStoreId: "fixture-value-45202",
   name: "Value Market · Estimated catalog",
-  retailer: "Weektable estimated catalog",
+  retailer: "Cove development fixture",
   address: "Sample value market for ZIP 45202",
   zipCode: "45202",
   priceKind: "fixture",

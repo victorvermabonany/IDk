@@ -2,7 +2,7 @@ import "server-only";
 
 export type LogLevel = "info" | "warn" | "error";
 
-const sensitiveKeys = new Set(["postalCode", "allergies", "dietaryRestrictions", "dislikedFoods", "preferredCuisines", "pantryItems", "customInstructions", "authorization", "openai_api_key"]);
+const sensitiveKeys = new Set(["postalcode", "allergies", "dietaryrestrictions", "dislikedfoods", "preferredcuisines", "pantryitems", "custominstructions", "authorization", "openai_api_key"]);
 
 function sanitize(value: unknown): unknown {
   if (Array.isArray(value)) return { count: value.length };

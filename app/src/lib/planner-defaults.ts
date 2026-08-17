@@ -1,7 +1,7 @@
 import type { PlannerRequest } from "@/domain/types";
 
 export const CLIENT_DEFAULT_REQUEST: PlannerRequest = {
-  store: { id: "demo-kroger-45202", locationId: "fixture-45202", postalCode: "45202" },
+  store: { id: "", locationId: "", postalCode: "45202" },
   budgetCents: 10_000,
   householdSize: 2,
   dinnerCount: 5,

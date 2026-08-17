@@ -1,10 +1,12 @@
 import SwiftUI
 
+#if DEBUG
+
 @MainActor
 enum PreviewFactory {
     static func model(withPlan: Bool = true) -> AppModel {
         let persistence = PersistenceController(inMemory: true)
-        let model = AppModel(persistence: persistence, subscriptions: SubscriptionService())
+        let model = AppModel(repository: AppConfiguration.makePreviewRepository(), persistence: persistence, subscriptions: SubscriptionService())
         model.plan = withPlan ? DemoData.plan : nil
         if withPlan {
             model.groceryState.ownedItemIDs = Set(DemoData.plan.basket.filter(\.pantryStatus).map(\.id))
@@ -31,3 +33,4 @@ enum PreviewFactory {
     NavigationStack { GroceryListView(appModel: PreviewFactory.model()) }
         .environment(\.dynamicTypeSize, .accessibility2)
 }
+#endif

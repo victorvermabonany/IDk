@@ -11,18 +11,20 @@ settings:
     CURRENT_PROJECT_VERSION: 1
     MARKETING_VERSION: 1.0
     GENERATE_INFOPLIST_FILE: YES
-    INFOPLIST_KEY_CFBundleDisplayName: Weektable
+    INFOPLIST_KEY_CFBundleDisplayName: Cove
     INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.food-and-drink
     INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
     INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
-    WEEKTABLE_API_BASE_URL: ""
-    WEEKTABLE_PRIVACY_URL: ""
-    WEEKTABLE_TERMS_URL: ""
-    WEEKTABLE_SUPPORT_URL: ""
-    INFOPLIST_KEY_WEEKTABLE_API_BASE_URL: "$(WEEKTABLE_API_BASE_URL)"
-    INFOPLIST_KEY_WEEKTABLE_PRIVACY_URL: "$(WEEKTABLE_PRIVACY_URL)"
-    INFOPLIST_KEY_WEEKTABLE_TERMS_URL: "$(WEEKTABLE_TERMS_URL)"
-    INFOPLIST_KEY_WEEKTABLE_SUPPORT_URL: "$(WEEKTABLE_SUPPORT_URL)"
+    COVE_RUNTIME_MODE: DEVELOPMENT_FIXTURE
+    COVE_API_BASE_URL: ""
+    COVE_PRIVACY_URL: ""
+    COVE_TERMS_URL: ""
+    COVE_SUPPORT_URL: ""
+    INFOPLIST_KEY_COVE_RUNTIME_MODE: "$(COVE_RUNTIME_MODE)"
+    INFOPLIST_KEY_COVE_API_BASE_URL: "$(COVE_API_BASE_URL)"
+    INFOPLIST_KEY_COVE_PRIVACY_URL: "$(COVE_PRIVACY_URL)"
+    INFOPLIST_KEY_COVE_TERMS_URL: "$(COVE_TERMS_URL)"
+    INFOPLIST_KEY_COVE_SUPPORT_URL: "$(COVE_SUPPORT_URL)"
     INFOPLIST_KEY_UILaunchScreen_Generation: YES
     INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
     ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -35,6 +37,11 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.weektable.ios
+      configs:
+        Debug:
+          COVE_RUNTIME_MODE: DEVELOPMENT_FIXTURE
+        Release:
+          COVE_RUNTIME_MODE: PRODUCTION_LIVE
     preBuildScripts:
       - name: Validate Release configuration
         script: bash "$SRCROOT/Scripts/validate-release-config.sh"

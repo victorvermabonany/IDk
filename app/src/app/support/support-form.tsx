@@ -21,7 +21,7 @@ export function SupportForm() {
   return <form className="support-form" onSubmit={submit}>
     <label>Email<input required name="email" type="email" autoComplete="email" maxLength={254} /></label>
     <label>How can we help?<textarea required name="message" minLength={10} maxLength={2000} rows={7} /></label>
-    <button className="button-primary" disabled={state === "sending"}>{state === "sending" ? "Sending…" : "Send support request"}</button>
-    <p role="status" aria-live="polite">{state === "sent" ? `Request received. Save ticket ${ticketID}.` : state === "error" ? "We couldn’t send that request. Please try again." : ""}</p>
+    <button className="button-primary" disabled={state === "sending"}>{state === "sending" ? "Saving…" : "Save support request"}</button>
+    <p role="status" aria-live="polite">{state === "sent" ? `Request saved for review. Save ticket ${ticketID}.` : state === "error" ? "We couldn’t save that request. Please try again." : ""}</p>
   </form>;
 }

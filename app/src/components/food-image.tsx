@@ -25,6 +25,14 @@ export function FoodImage({
     "sausage-pepper-pan": "/meal-sausage-peppers.png",
     "turkey-tomato-rigatoni": "/meal-turkey-rigatoni.png",
     "bean-pepper-quesadillas": "/meal-black-bean-quesadillas.png",
+    "tofu-rice-bowls": "/meal-tofu-rice-bowls.jpg",
+    "lentil-tomato-bowls": "/meal-lentil-tomato-bowls.jpg",
+    "chickpea-coconut-curry": "/meal-chickpea-coconut-curry.jpg",
+    "sweet-potato-black-bean-tacos": "/meal-sweet-potato-black-bean-tacos.jpg",
+    "mediterranean-chickpea-quinoa": "/meal-mediterranean-chickpea-quinoa.jpg",
+    "tofu-quinoa-skillet": "/meal-tofu-quinoa-skillet.jpg",
+    "lentil-rice-stuffed-peppers": "/meal-lentil-rice-pepper-bowls.jpg",
+    "egg-quinoa-vegetable-bowls": "/meal-egg-quinoa-vegetable-bowls.jpg",
   };
   const title = mealTitle?.toLowerCase() ?? "";
   const imageFromTitle = title.includes("pesto rigatoni") ? "/meal-pesto-rigatoni.png"
@@ -34,6 +42,14 @@ export function FoodImage({
     : title.includes("sausage") && title.includes("peppers") ? "/meal-sausage-peppers.png"
     : title.includes("turkey rigatoni") ? "/meal-turkey-rigatoni.png"
     : title.includes("black bean") && title.includes("quesadilla") ? "/meal-black-bean-quesadillas.png"
+    : title.includes("tofu") && title.includes("rice") ? "/meal-tofu-rice-bowls.jpg"
+    : title.includes("lentil") && title.includes("tomato") ? "/meal-lentil-tomato-bowls.jpg"
+    : title.includes("chickpea") && title.includes("curry") ? "/meal-chickpea-coconut-curry.jpg"
+    : title.includes("sweet potato") && title.includes("taco") ? "/meal-sweet-potato-black-bean-tacos.jpg"
+    : title.includes("chickpea") && title.includes("quinoa") ? "/meal-mediterranean-chickpea-quinoa.jpg"
+    : title.includes("tofu") && title.includes("quinoa") ? "/meal-tofu-quinoa-skillet.jpg"
+    : title.includes("lentil") && title.includes("rice") ? "/meal-lentil-rice-pepper-bowls.jpg"
+    : title.includes("egg") && title.includes("quinoa") ? "/meal-egg-quinoa-vegetable-bowls.jpg"
     : undefined;
 
   return (

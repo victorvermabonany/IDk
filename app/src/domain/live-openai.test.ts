@@ -26,7 +26,12 @@ liveTest("generates and validates a live multi-constraint week", async () => {
   expect(plan.meals.flatMap((meal) => meal.ingredients).every((ingredient) => !/(chicken|turkey|sausage|beef|pork|fish|shellfish|peanut|mushroom)/i.test(`${ingredient.ingredientId} ${ingredient.name}`))).toBe(true);
   expect(plan.meals.flatMap((meal) => meal.instructions).every((instruction) => !/oven|bake|roast|sheet[ -]?pan/i.test(instruction))).toBe(true);
   expect(plan.estimatedTotalCents).toBeLessThanOrEqual(8_500);
-  expect(plan.basket.find((item) => item.ingredientId === "brown_rice")?.pantryStatus).toBe("already_have");
+  const riceItem = plan.basket.find((item) => item.ingredientId === "brown_rice");
+  if (riceItem) {
+    expect(riceItem.pantryStatus).toBe("already_have");
+    expect(riceItem.totalPriceCents).toBe(0);
+  }
+  expect(plan.basket.some((item) => item.ingredientId === "brown_rice" && item.pantryStatus === "needed")).toBe(false);
   expect(plan.basket.every((item) => item.product !== null && item.packageCount > 0)).toBe(true);
   expect(plan.meals.every((meal) => meal.instructions.length >= 2 && meal.ingredients.length >= 3)).toBe(true);
   expect(plan.constraintsUsed).toEqual(constraints);

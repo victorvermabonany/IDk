@@ -52,6 +52,14 @@ export interface ProviderProduct {
   regularPriceCents: number; salePriceCents: number | null; availability: "in_stock" | "out_of_stock" | "unknown";
   department: Department; priceKind: "live" | "feed" | "estimated" | "fixture"; observedAt: string;
 }
+export interface PricingProvenance {
+  pricingMode: "live" | "estimated" | "fixture";
+  provider: "kroger" | "cove_estimate" | "fixture";
+  providerName: string;
+  storeName: string;
+  providerStoreId: string;
+  updatedAt: string;
+}
 export interface GroceryProvider {
   readonly id: string; readonly displayName: string;
   findStores(zipCode: string): Promise<ProviderStore[]>;
@@ -69,6 +77,7 @@ export interface MealPlan {
   id: string; title: string; store: ProviderStore; constraintsUsed: PlannerRequest; budgetCents: number;
   internalTargetCents: number; estimatedTotalCents: number; priceCoverage: number;
   priceKind: ProviderStore["priceKind"]; priceObservedAt: string; meals: Meal[]; basket: BasketItem[];
+  pricingProvenance: PricingProvenance;
   createdAt: string; safetyNotice: string;
 }
 export interface SwapPreview {

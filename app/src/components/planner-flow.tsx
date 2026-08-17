@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import type { PlannerRequest } from "@/domain/types";
+import type { PlannerRequest, ProviderStore } from "@/domain/types";
 import { CLIENT_DEFAULT_REQUEST } from "@/lib/planner-defaults";
 
 const steps = ["Store & budget", "Household", "Food", "Pantry"];
@@ -27,30 +27,62 @@ export function PlannerFlow() {
   const [dislikesText, setDislikesText] = useState(CLIENT_DEFAULT_REQUEST.dislikedFoods.join(", "));
   const [pantryText, setPantryText] = useState("");
   const [error, setError] = useState("");
+  const [stores, setStores] = useState<ProviderStore[]>([]);
+  const [storeStatus, setStoreStatus] = useState<"idle" | "loading" | "loaded" | "error">("idle");
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      const saved = sessionStorage.getItem("weektable:planner-draft");
-      if (!saved) return;
-      try {
-        const draft = JSON.parse(saved) as { form: PlannerRequest; dislikesText: string; pantryText: string; step: number };
-        setForm(draft.form);
-        setDislikesText(draft.dislikesText);
-        setPantryText(draft.pantryText);
-        setStep(Math.min(draft.step, 3));
-      } catch {
-        sessionStorage.removeItem("weektable:planner-draft");
+      const saved = sessionStorage.getItem("cove:planner-draft") ?? sessionStorage.getItem("weektable:planner-draft");
+      if (saved) {
+        try {
+          const draft = JSON.parse(saved) as { form: PlannerRequest; dislikesText: string; pantryText: string; step: number };
+          setForm(draft.form);
+          setDislikesText(draft.dislikesText);
+          setPantryText(draft.pantryText);
+          setStep(Math.min(draft.step, 3));
+        } catch {
+          sessionStorage.removeItem("cove:planner-draft");
+          sessionStorage.removeItem("weektable:planner-draft");
+        }
       }
+      setHydrated(true);
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
+    if (!/^\d{5}$/.test(form.store.postalCode)) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setStoreStatus("loading");
+      try {
+        const response = await fetch(`/v1/stores?postalCode=${encodeURIComponent(form.store.postalCode)}`, { signal: controller.signal, cache: "no-store" });
+        if (!response.ok) throw new Error("Store discovery failed");
+        const payload = await response.json() as { stores: ProviderStore[] };
+        setStores(payload.stores);
+        setStoreStatus("loaded");
+        setForm((current) => {
+          const selected = payload.stores.find((store) => store.id === current.store.id) ?? payload.stores[0];
+          return selected ? { ...current, store: { id: selected.id, locationId: selected.providerStoreId, postalCode: current.store.postalCode } } : current;
+        });
+      } catch {
+        if (!controller.signal.aborted) {
+          setStores([]);
+          setStoreStatus("error");
+        }
+      }
+    }, 250);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [form.store.postalCode]);
+
+  useEffect(() => {
+    if (!hydrated) return;
     sessionStorage.setItem(
-      "weektable:planner-draft",
+      "cove:planner-draft",
       JSON.stringify({ form, dislikesText, pantryText, step }),
     );
-  }, [form, dislikesText, pantryText, step]);
+  }, [form, dislikesText, pantryText, step, hydrated]);
 
   function setField<K extends keyof PlannerRequest>(key: K, value: PlannerRequest[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -58,15 +90,14 @@ export function PlannerFlow() {
   }
 
   function setPostalCode(postalCode: string) {
-    setField("store", { ...form.store, postalCode });
+    setStores([]);
+    setStoreStatus("idle");
+    setField("store", { id: "", locationId: "", postalCode });
   }
 
   function setStore(id: string) {
-    setField("store", {
-      ...form.store,
-      id,
-      locationId: id === "demo-value-45202" ? "fixture-value-45202" : "fixture-45202",
-    });
+    const selected = stores.find((store) => store.id === id);
+    if (selected) setField("store", { id: selected.id, locationId: selected.providerStoreId, postalCode: form.store.postalCode });
   }
 
   function toggleAllergy(value: string) {
@@ -101,6 +132,10 @@ export function PlannerFlow() {
       setError("The minimum planning budget is $20.");
       return;
     }
+    if (step === 0 && (storeStatus !== "loaded" || !stores.some((store) => store.id === form.store.id))) {
+      setError("Choose an available store or Cove estimate.");
+      return;
+    }
     setStep((current) => Math.min(current + 1, 3));
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -112,8 +147,10 @@ export function PlannerFlow() {
       dislikedFoods: dislikesText.split(",").map((item) => item.trim()).filter(Boolean),
       pantryItems: [...new Set([...form.pantryItems, ...customPantry])],
     };
-    sessionStorage.setItem("weektable:request", JSON.stringify(request));
-    sessionStorage.removeItem("weektable:plan");
+    sessionStorage.setItem("cove:request", JSON.stringify(request));
+    sessionStorage.removeItem("cove:plan");
+    sessionStorage.removeItem("cove:generation-job");
+    sessionStorage.removeItem("cove:generation-key");
     router.push("/plan/generating");
   }
 
@@ -145,11 +182,11 @@ export function PlannerFlow() {
             </div>
             <label className="field">
               <span>Store location</span>
-              <select value={form.store.id} onChange={(event) => setStore(event.target.value)}>
-                <option value="demo-kroger-45202">Central Market · Estimated catalog</option>
-                <option value="demo-value-45202">Value Market · Central demo — Cincinnati, OH</option>
+              <select value={form.store.id} onChange={(event) => setStore(event.target.value)} disabled={storeStatus !== "loaded" || stores.length === 0}>
+                <option value="">{storeStatus === "loading" ? "Finding stores…" : storeStatus === "error" ? "Stores unavailable — check your ZIP" : stores.length === 0 ? "No stores found" : "Choose a store"}</option>
+                {stores.map((store) => <option value={store.id} key={store.id}>{store.name} · {store.address}</option>)}
               </select>
-              <small>This beta uses estimated complete-package catalog prices for planning. Check current shelf prices and labels.</small>
+              <small>Provider-listed prices appear where supported; Cove estimates are clearly labeled. Always check current shelf prices and labels.</small>
             </label>
           </section>
         ) : null}

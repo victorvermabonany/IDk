@@ -23,11 +23,11 @@
       "localizations" : [
         {
           "description" : "Unlimited weekly grocery planning and meal swaps.",
-          "displayName" : "Weektable Pro",
+          "displayName" : "Cove Pro",
           "locale" : "en_US"
         }
       ],
-      "name" : "Weektable Pro",
+      "name" : "Cove Pro",
       "subscriptions" : [
         {
           "adHocOffers" : [
@@ -44,13 +44,13 @@
           "localizations" : [
             {
               "description" : "Plan and rebalance every week.",
-              "displayName" : "Weektable Pro Monthly",
+              "displayName" : "Cove Pro Monthly",
               "locale" : "en_US"
             }
           ],
           "productID" : "com.weektable.pro.monthly",
           "recurringSubscriptionPeriod" : "P1M",
-          "referenceName" : "Weektable Pro Monthly",
+          "referenceName" : "Cove Pro Monthly",
           "subscriptionGroupID" : "F9F40A8B-323D-4315-84AE-72805C6D91E2"
         },
         {
@@ -68,13 +68,13 @@
           "localizations" : [
             {
               "description" : "Plan and rebalance every week.",
-              "displayName" : "Weektable Pro Annual",
+              "displayName" : "Cove Pro Annual",
               "locale" : "en_US"
             }
           ],
           "productID" : "com.weektable.pro.annual",
           "recurringSubscriptionPeriod" : "P1Y",
-          "referenceName" : "Weektable Pro Annual",
+          "referenceName" : "Cove Pro Annual",
           "subscriptionGroupID" : "F9F40A8B-323D-4315-84AE-72805C6D91E2"
         }
       ]

@@ -29,7 +29,7 @@ struct GroceryListView: View {
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
 
-                        PriceSourceNotice(priceKind: plan.priceKind)
+                        PriceSourceNotice(plan: plan)
                             .listRowInsets(EdgeInsets(top: 0, leading: WeektableTheme.pagePadding, bottom: 8, trailing: WeektableTheme.pagePadding))
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
@@ -119,7 +119,7 @@ struct GroceryListView: View {
             guard !items.isEmpty else { return [] }
             return [department.rawValue.uppercased()] + items.map { "• \($0.productName) · \($0.packageCount) × \($0.packageDisplay)" }
         }
-        return (["Weektable grocery list"] + lines + ["Estimated total: \(appModel.groceryTotalCents.currency)", "Verify current prices and allergen labels."]).joined(separator: "\n")
+        return (["Cove grocery list"] + lines + ["Planning total: \(appModel.groceryTotalCents.currency)", "Verify current prices and allergen labels."]).joined(separator: "\n")
     }
 }
 

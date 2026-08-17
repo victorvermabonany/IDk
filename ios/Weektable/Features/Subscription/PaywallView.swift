@@ -49,13 +49,13 @@ struct PaywallView: View {
                 .padding(WeektableTheme.pagePadding)
             }
             .background(WeektableTheme.canvas)
-            .navigationTitle("Weektable Pro")
+            .navigationTitle("Cove Pro")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close", systemImage: "xmark") { dismiss() }
                         .labelStyle(.iconOnly)
-                        .accessibilityHint("Closes Weektable Pro")
+                        .accessibilityHint("Closes Cove Pro")
                 }
             }
             .task {
@@ -147,7 +147,7 @@ struct PaywallView: View {
         switch outcome {
         case .purchased:
             Haptics.success()
-            UIAccessibility.post(notification: .announcement, argument: "Weektable Pro is active")
+            UIAccessibility.post(notification: .announcement, argument: "Cove Pro is active")
             if feature == .anotherWeek { appModel.startPlannerForAnotherWeek() }
             dismiss()
         case .pending:

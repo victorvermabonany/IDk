@@ -1,6 +1,6 @@
 workflows:
-  weektable-appetize:
-    name: Weektable - Appetize Simulator Build
+  cove-appetize:
+    name: Cove - Appetize Simulator Build
     max_build_duration: 30
     instance_type: mac_mini_m2
     environment:
@@ -19,5 +19,5 @@ workflows:
           chmod +x Scripts/build-appetize.sh
           Scripts/build-appetize.sh
     artifacts:
-      - ios/build/Weektable-Appetize.zip
+      - ios/build/Cove-Appetize.zip
       - ios/build/xcodebuild.log

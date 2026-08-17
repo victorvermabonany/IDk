@@ -1,10 +1,10 @@
-# Weektable V1 product, architecture, and design brief
+# Cove V1 product, architecture, and design brief
 
-Status: implementation-approved; this document records the review completed before production work began. “Weektable” is a provisional working name.
+Status: implementation-approved. Cove is the current product name; legacy Weektable technical identifiers remain only where compatibility requires them.
 
 ## 1. Product understanding
 
-Weektable is a constraint-solving grocery and dinner-planning product. A user supplies where they shop, what they can spend, how many people and dinners they need to feed, and the food constraints that matter. The product returns a complete, purchasable week: distinct recipes, consolidated ingredients, full package quantities, matched products, a defensible estimated basket total, and a grocery list designed for one-handed use in a store.
+Cove is a constraint-solving grocery and dinner-planning product. A user supplies where they shop, what they can spend, how many people and dinners they need to feed, and the food constraints that matter. The product returns a complete, purchasable week: distinct recipes, consolidated ingredients, full package quantities, matched products, a defensible estimated basket total, and a grocery list designed for one-handed use in a store.
 
 The product is not recipe search, a chatbot, or a calorie tracker. Its promise is that the weekly planning problem has been handled. The core experience is:
 

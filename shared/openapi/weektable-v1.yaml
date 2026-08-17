@@ -1,13 +1,13 @@
 openapi: 3.1.0
 info:
-  title: Weektable API
+  title: Cove API
   version: 1.0.0
   description: Server-authoritative planning, grocery, and meal-swap contract shared by web and iOS clients.
   license:
     name: Proprietary
     identifier: LicenseRef-Proprietary
 servers:
-  - url: https://api.weektable.example
+  - url: https://api.cove.example
 paths:
   /v1/stores:
     get:
@@ -232,7 +232,7 @@ components:
         priceKind: { $ref: "#/components/schemas/PriceKind" }
     MealPlan:
       type: object
-      required: [id, title, store, budgetCents, estimatedTotalCents, priceCoverage, priceKind, meals, basket, constraintsUsed, internalTargetCents, priceObservedAt, createdAt, safetyNotice]
+      required: [id, title, store, budgetCents, estimatedTotalCents, priceCoverage, priceKind, pricingProvenance, meals, basket, constraintsUsed, internalTargetCents, priceObservedAt, createdAt, safetyNotice]
       properties:
         id: { type: string }
         title: { type: string }
@@ -241,6 +241,7 @@ components:
         estimatedTotalCents: { type: integer, minimum: 0 }
         priceCoverage: { type: number, minimum: 0, maximum: 1 }
         priceKind: { $ref: "#/components/schemas/PriceKind" }
+        pricingProvenance: { $ref: "#/components/schemas/PricingProvenance" }
         meals: { type: array, items: { $ref: "#/components/schemas/Meal" } }
         basket: { type: array, items: { $ref: "#/components/schemas/BasketItem" } }
         constraintsUsed: { $ref: "#/components/schemas/PlannerRequest" }
@@ -323,6 +324,16 @@ components:
     PriceKind:
       type: string
       enum: [live, feed, estimated, fixture]
+    PricingProvenance:
+      type: object
+      required: [pricingMode, provider, providerName, storeName, providerStoreId, updatedAt]
+      properties:
+        pricingMode: { type: string, enum: [live, estimated, fixture] }
+        provider: { type: string, enum: [kroger, cove_estimate, fixture] }
+        providerName: { type: string }
+        storeName: { type: string }
+        providerStoreId: { type: string }
+        updatedAt: { type: string, format: date-time }
     ErrorEnvelope:
       type: object
       required: [error]

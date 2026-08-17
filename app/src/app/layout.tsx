@@ -14,20 +14,20 @@ const newsreader = Newsreader({
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
-  title: "Weektable — Your week of food, figured out",
+  title: "Cove — Your week, planned.",
   description:
-    "Tell Weektable where you shop, what you want to spend, and how you like to eat. Get a week of dinners and one grocery list built around it.",
-  applicationName: "Weektable",
+    "Tell Cove where you shop, what you want to spend, and how you like to eat. Get a week of dinners and one grocery list built around it.",
+  applicationName: "Cove",
   openGraph: {
-    title: "Weektable — Your week of food, figured out",
+    title: "Cove — Your week, planned.",
     description: "A week of dinners and one grocery list built around your store, budget, and food preferences.",
     type: "website",
-    siteName: "Weektable",
-    images: [{ url: "/weektable-dinners.png", width: 1536, height: 1024, alt: "A Weektable week of approachable dinners" }],
+    siteName: "Cove",
+    images: [{ url: "/weektable-dinners.png", width: 1536, height: 1024, alt: "A Cove week of approachable dinners" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Weektable — Your week of food, figured out",
+    title: "Cove — Your week, planned.",
     description: "A week of dinners and one grocery list built around your store, budget, and food preferences.",
     images: ["/weektable-dinners.png"],
   },
@@ -36,7 +36,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${dmSans.variable} ${newsreader.variable}`}>
+    <html lang="en" className={`${dmSans.variable} ${newsreader.variable}`} data-scroll-behavior="smooth">
       <body>{children}</body>
     </html>
   );

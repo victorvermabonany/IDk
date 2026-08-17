@@ -11,9 +11,9 @@ const featuredMeals = [
 
 function BrandMark() {
   return (
-    <Link className="landing-brand" href="/" aria-label="Weektable home">
+    <Link className="landing-brand" href="/" aria-label="Cove home">
       <Image src="/weektable-app-icon.png" alt="" width={34} height={34} priority />
-      <span>Weektable</span>
+      <span>Cove</span>
     </Link>
   );
 }
@@ -24,7 +24,7 @@ function PlanLink({ className = "landing-button" }: { className?: string }) {
 
 function WeekProductView() {
   return (
-    <div className="product-phone" aria-label="Example Weektable weekly plan">
+    <div className="product-phone" aria-label="Example Cove weekly plan">
       <div className="product-phone__bar"><span>9:41</span><strong>This week</strong><span aria-hidden="true">•••</span></div>
       <div className="product-week-card">
         <FoodImage className="product-week-card__photo" alt="" decorative priority />
@@ -60,7 +60,7 @@ export default function Home() {
       <section className="consumer-hero page-shell">
         <div className="consumer-hero__copy">
           <p className="landing-eyebrow">Dinner planning that starts with real life</p>
-          <h1>Your week of food, <span>figured out.</span></h1>
+          <h1>Your week, <span>planned.</span></h1>
           <p className="consumer-hero__deck">Tell us where you shop, what you want to spend, and how you like to eat. We’ll build your meals and one grocery list around it.</p>
           <div className="consumer-hero__actions"><PlanLink /><span>About 3 minutes · no account needed</span></div>
           <dl className="outcome-row" aria-label="Example weekly outcome">
@@ -70,16 +70,16 @@ export default function Home() {
         <div className="consumer-hero__visual"><WeekProductView /></div>
       </section>
 
-      <section className="trust-line" aria-label="Weektable principles"><div className="page-shell"><span>Budget-led planning</span><span>Complete-package math</span><span>Store-aware pricing where supported</span></div></section>
+      <section className="trust-line" aria-label="Cove principles"><div className="page-shell"><span>Budget-led planning</span><span>Complete-package math</span><span>Store-aware pricing where supported</span></div></section>
 
       <section id="how-it-works" className="landing-intro page-shell">
         <p className="landing-eyebrow">One plan, not five disconnected recipes</p>
         <h2>The meals, the basket, and the budget all move together.</h2>
-        <p>Weektable works backward from what matters at checkout, then builds a week that shares ingredients without making every dinner taste the same.</p>
+        <p>Cove works backward from what matters at checkout, then builds a week that shares ingredients without making every dinner taste the same.</p>
       </section>
 
       <section id="product" className="product-story product-story--budget page-shell">
-        <div className="story-copy"><span className="story-number">01</span><p className="landing-eyebrow">Your budget comes first</p><h2>Know the basket before you fall for the recipes.</h2><p>Set the number that works for your household. Weektable prices complete packages, builds a coherent set of dinners, and leaves the breathing room visible.</p></div>
+        <div className="story-copy"><span className="story-number">01</span><p className="landing-eyebrow">Your budget comes first</p><h2>Know the basket before you fall for the recipes.</h2><p>Set the number that works for your household. Cove prices complete packages, builds a coherent set of dinners, and leaves the breathing room visible.</p></div>
         <div className="budget-proof" aria-label="Example budget result">
           <div className="budget-proof__top"><span>WEEKLY BASKET</span><strong>5 dinners</strong></div><p><b>$93.42</b><span> / $100</span></p><div className="budget-proof__track"><span /></div><div className="budget-proof__bottom"><strong>$6.58 remaining</strong><span>Complete packages</span></div><small>Illustrative result using estimated complete-package catalog pricing.</small>
         </div>
@@ -94,7 +94,7 @@ export default function Home() {
       </div></section>
 
       <section className="product-story product-story--swap page-shell">
-        <div className="story-copy"><span className="story-number">03</span><p className="landing-eyebrow">Change a meal, not the whole plan</p><h2>Swap dinner. Keep the basket balanced.</h2><p>Every alternative is checked against the ingredients already in your basket and the total you asked Weektable to respect.</p></div>
+        <div className="story-copy"><span className="story-number">03</span><p className="landing-eyebrow">Change a meal, not the whole plan</p><h2>Swap dinner. Keep the basket balanced.</h2><p>Every alternative is checked against the ingredients already in your basket and the total you asked Cove to respect.</p></div>
         <div className="swap-proof" aria-label="Example meal swap"><div className="swap-proof__header"><span>MEAL SWAP</span><strong>Wednesday</strong></div><FoodImage mealId="turkey-rice-bowls" alt="Turkey rice bowls" className="swap-proof__image" /><div className="swap-proof__body"><span>NEW MEAL</span><h3>Turkey rice bowls</h3><p>Uses 4 ingredients already in your basket</p><div><strong>−$2.14</strong><span>New basket <b>$91.28</b></span></div></div></div>
       </section>
 

@@ -21,7 +21,7 @@ export async function readJSONBody(request: Request): Promise<unknown> {
 
 function clientKey(request: Request) {
   const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  const device = request.headers.get("x-weektable-device-id")?.slice(0, 128);
+  const device = (request.headers.get("x-cove-device-id") ?? request.headers.get("x-weektable-device-id"))?.slice(0, 128);
   return createHash("sha256").update(device || forwarded || "anonymous").digest("hex").slice(0, 24);
 }
 

@@ -3,7 +3,7 @@ set -euo pipefail
 
 [[ "${CONFIGURATION:-}" == "Release" ]] || exit 0
 
-required=(WEEKTABLE_API_BASE_URL WEEKTABLE_PRIVACY_URL WEEKTABLE_TERMS_URL WEEKTABLE_SUPPORT_URL)
+required=(COVE_API_BASE_URL COVE_PRIVACY_URL COVE_TERMS_URL COVE_SUPPORT_URL)
 for name in "${required[@]}"; do
   value="${!name:-}"
   if [[ -z "$value" || "$value" != https://* ]]; then
@@ -11,6 +11,11 @@ for name in "${required[@]}"; do
     exit 1
   fi
 done
+
+if [[ "${COVE_RUNTIME_MODE:-}" != "PRODUCTION_LIVE" ]]; then
+  echo "error: COVE_RUNTIME_MODE must be PRODUCTION_LIVE for Release builds." >&2
+  exit 1
+fi
 
 if grep -R --include='*.swift' -n 'return DemoPlanRepository()' "$SRCROOT/Weektable" | grep -v AppConfiguration.swift >/dev/null; then
   echo "error: DemoPlanRepository is referenced outside the explicit Debug configuration gate." >&2

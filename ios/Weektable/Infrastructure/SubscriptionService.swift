@@ -120,7 +120,7 @@ final class SubscriptionService {
         do {
             try await AppStore.sync()
             await refreshEntitlements()
-            return isPro ? .purchased : .failed("No active Weektable Pro purchase was found for this Apple ID.")
+            return isPro ? .purchased : .failed("No active Cove Pro purchase was found for this Apple ID.")
         } catch {
             return .failed("Purchases could not be restored. Check your connection and try again.")
         }

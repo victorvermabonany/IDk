@@ -10,13 +10,13 @@ export function SiteHeader({ backHref }: { backHref?: string }) {
             <span>Back</span>
           </Link>
         ) : (
-          <Link className="wordmark" href="/" aria-label="Weektable home">
-            Weektable
+          <Link className="wordmark" href="/" aria-label="Cove home">
+            Cove
           </Link>
         )}
         {backHref ? (
           <Link className="wordmark wordmark--center" href="/">
-            Weektable
+            Cove
           </Link>
         ) : null}
         <span className="header-note">Dinner, handled.</span>

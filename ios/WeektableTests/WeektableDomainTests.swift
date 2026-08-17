@@ -11,7 +11,7 @@ final class WeektableDomainTests: XCTestCase {
     func testPantryItemsAreExcludedFromNativeGroceryTotal() async {
         await MainActor.run {
             let persistence = PersistenceController(inMemory: true)
-            let model = AppModel(persistence: persistence, subscriptions: SubscriptionService())
+            let model = AppModel(repository: DemoPlanRepository(), persistence: persistence, subscriptions: SubscriptionService())
             model.plan = DemoData.plan
             model.groceryState.ownedItemIDs = Set(DemoData.plan.basket.filter(\.pantryStatus).map(\.id))
             XCTAssertEqual(model.groceryTotalCents, 8_537)
@@ -45,7 +45,7 @@ final class WeektableDomainTests: XCTestCase {
     func testFreeBetaAllowsAnotherWeekWithoutRemovingCurrentPlan() async {
         await MainActor.run {
             let persistence = PersistenceController(inMemory: true)
-            let model = AppModel(persistence: persistence, subscriptions: SubscriptionService())
+            let model = AppModel(repository: DemoPlanRepository(), persistence: persistence, subscriptions: SubscriptionService())
             model.plan = DemoData.plan
             model.rootFlow = .main
             model.completedPlanCount = 1

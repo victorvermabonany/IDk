@@ -20,7 +20,7 @@ fi
 BUILD_ROOT="$PWD/build"
 DERIVED_DATA="$BUILD_ROOT/DerivedData"
 APP_PATH="$DERIVED_DATA/Build/Products/Debug-iphonesimulator/Weektable.app"
-ARCHIVE_PATH="$BUILD_ROOT/Weektable-Appetize.zip"
+ARCHIVE_PATH="$BUILD_ROOT/Cove-Appetize.zip"
 LOG_PATH="$BUILD_ROOT/xcodebuild.log"
 
 mkdir -p "$BUILD_ROOT"
@@ -54,4 +54,3 @@ if [[ ! -f "$ARCHIVE_PATH" ]]; then
 fi
 
 echo "Created Appetize-ready artifact: $ARCHIVE_PATH"
-
