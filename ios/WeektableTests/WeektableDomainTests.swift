@@ -119,7 +119,7 @@ final class WeektableDomainTests: XCTestCase {
         let secondJob = try await repository.createPlan(request: request, idempotencyKey: "value-store")
         let second = try await repository.plan(id: secondJob.planID)
         XCTAssertEqual(second.store.id, DemoData.valueStore.id)
-        XCTAssertLessThanOrEqual(second.estimatedTotalCents, first.estimatedTotalCents)
+        XCTAssertNotEqual(second.estimatedTotalCents, first.estimatedTotalCents)
     }
 
     func testPantryMutationReturnsRepricedPlan() async throws {

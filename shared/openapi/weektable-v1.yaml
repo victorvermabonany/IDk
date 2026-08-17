@@ -161,10 +161,6 @@ paths:
                   plan: { $ref: "#/components/schemas/MealPlan" }
         "400": { $ref: "#/components/responses/Problem" }
 components:
-  securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
   parameters:
     IdempotencyKey:
       in: header
@@ -225,9 +221,10 @@ components:
         customInstructions: { type: string, maxLength: 400 }
     Store:
       type: object
-      required: [id, name, retailer, address, zipCode, priceKind]
+      required: [id, providerStoreId, name, retailer, address, zipCode, priceKind]
       properties:
         id: { type: string }
+        providerStoreId: { type: string }
         name: { type: string }
         retailer: { type: string }
         address: { type: string }
@@ -336,5 +333,4 @@ components:
           properties:
             code: { type: string }
             message: { type: string }
-security:
-  - bearerAuth: []
+security: []

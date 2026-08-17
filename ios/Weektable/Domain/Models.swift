@@ -69,7 +69,6 @@ struct PlannerRequest: Codable, Equatable, Sendable {
     var preferredCuisines: Set<String> = []
     var maxCookingMinutes = 40
     var pantryItems: Set<String> = ["olive oil", "salt", "black pepper"]
-    var customPantryItems = ""
     var customInstructions = ""
 
     var zipCode: String {

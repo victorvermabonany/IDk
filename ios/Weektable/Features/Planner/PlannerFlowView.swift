@@ -136,13 +136,6 @@ struct PlannerFlowView: View {
             }
         }
         validationMessage = nil
-        if step == .pantry {
-            let customItems = draft.customPantryItems
-                .split(separator: ",")
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
-                .filter { !$0.isEmpty }
-            draft.pantryItems.formUnion(customItems)
-        }
         appModel.updateDraft(draft)
         if step == .pantry {
             appModel.beginGeneration()
