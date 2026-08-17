@@ -63,12 +63,21 @@ jobs:
         working-directory: ios
         run: |
           mkdir -p build
+          DEVICE_ID=$(xcrun simctl list devices available -j | jq -r '[.devices[][] | select(.name | startswith("iPhone"))][0].udid // empty')
+          if [[ -z "$DEVICE_ID" ]]; then
+            RUNTIME_ID=$(xcrun simctl list runtimes -j | jq -r '[.runtimes[] | select(.isAvailable == true and (.identifier | contains("iOS")))][-1].identifier // empty')
+            DEVICE_TYPE_ID=$(xcrun simctl list devicetypes -j | jq -r '[.devicetypes[] | select(.name | startswith("iPhone"))][0].identifier // empty')
+            [[ -n "$RUNTIME_ID" && -n "$DEVICE_TYPE_ID" ]] || { echo "No available iOS Simulator runtime/device type" >&2; exit 1; }
+            DEVICE_ID=$(xcrun simctl create Weektable-CI "$DEVICE_TYPE_ID" "$RUNTIME_ID")
+          fi
+          xcrun simctl boot "$DEVICE_ID" 2>/dev/null || true
+          xcrun simctl bootstatus "$DEVICE_ID" -b
           set -o pipefail
           xcodebuild test \
             -project Weektable.xcodeproj \
             -scheme Weektable \
             -configuration Debug \
-            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+            -destination "platform=iOS Simulator,id=$DEVICE_ID" \
             CODE_SIGNING_ALLOWED=NO \
             | tee build/xcode-test.log
 
