@@ -2,6 +2,32 @@ name: Build Cove for Appetize
 
 on:
   workflow_dispatch:
+    inputs:
+      runtime_mode:
+        description: Runtime mode embedded in the simulator app
+        required: true
+        default: DEVELOPMENT_FIXTURE
+        type: choice
+        options:
+          - DEVELOPMENT_FIXTURE
+          - STAGING_LIVE
+          - PRODUCTION_LIVE
+      api_base_url:
+        description: HTTPS Cove backend URL (required for live modes)
+        required: false
+        type: string
+      privacy_url:
+        description: HTTPS privacy page URL (required for live modes)
+        required: false
+        type: string
+      terms_url:
+        description: HTTPS terms page URL (required for live modes)
+        required: false
+        type: string
+      support_url:
+        description: HTTPS support page URL (required for live modes)
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -84,6 +110,12 @@ jobs:
 
       - name: Build and package for Appetize
         working-directory: ios
+        env:
+          COVE_RUNTIME_MODE: ${{ inputs.runtime_mode }}
+          COVE_API_BASE_URL: ${{ inputs.api_base_url }}
+          COVE_PRIVACY_URL: ${{ inputs.privacy_url }}
+          COVE_TERMS_URL: ${{ inputs.terms_url }}
+          COVE_SUPPORT_URL: ${{ inputs.support_url }}
         run: bash Scripts/build-appetize.sh
 
       - name: Upload the Appetize-ready ZIP
