@@ -39,6 +39,7 @@ jobs:
             -project Weektable.xcodeproj \
             -scheme Weektable \
             -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest' \
+            -only-testing:WeektableTests \
             CODE_SIGNING_ALLOWED=NO
 
       - name: Build and package for Appetize
