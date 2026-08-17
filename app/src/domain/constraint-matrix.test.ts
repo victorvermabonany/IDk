@@ -98,4 +98,23 @@ describe("canonical planner constraint matrix", () => {
     expect(plan.basket.find((item) => item.ingredientId === "brown_rice")?.totalPriceCents ?? 0).toBe(0);
     expect(plan.constraintsUsed).toEqual(constraints);
   }, 30_000);
+
+  it("passes release scenarios A through D and rejects the intentionally impossible scenario E", async () => {
+    const scenarios = [
+      request({ budgetCents: 6_000, householdSize: 1, dinnerCount: 3, nutritionStyle: "quick", dietaryRestrictions: ["vegetarian"], maxCookingMinutes: 30 }),
+      request({ budgetCents: 12_000, householdSize: 2, dinnerCount: 5, nutritionStyle: "high-protein", dislikedFoods: ["seafood"] }),
+      request({ budgetCents: 8_500, householdSize: 3, dinnerCount: 5, nutritionStyle: "high-protein", dietaryRestrictions: ["vegetarian"], dislikedFoods: ["mushrooms"], maxCookingMinutes: 30, pantryItems: ["rice"] }),
+      request({ budgetCents: 15_000, householdSize: 4, dinnerCount: 7, nutritionStyle: "balanced", dietaryRestrictions: ["dairy-free"] }),
+    ];
+
+    for (const constraints of scenarios) {
+      const plan = await generatePlan(constraints);
+      validatePlanOrThrow(plan.meals, constraints);
+      expect(plan.meals).toHaveLength(constraints.dinnerCount);
+      expect(plan.meals.every((meal) => meal.servings === constraints.householdSize)).toBe(true);
+      expect(plan.estimatedTotalCents).toBeLessThanOrEqual(constraints.budgetCents);
+    }
+
+    await expect(generatePlan(request({ budgetCents: 100, householdSize: 8, dinnerCount: 7, dietaryRestrictions: ["vegan"], maxCookingMinutes: 15 }))).rejects.toThrow();
+  }, 30_000);
 });
