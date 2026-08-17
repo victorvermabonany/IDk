@@ -150,7 +150,15 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/GroceryState" }
       responses:
-        "204": { description: Grocery state synchronized. }
+        "200":
+          description: Grocery state synchronized and basket repriced.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [plan]
+                properties:
+                  plan: { $ref: "#/components/schemas/MealPlan" }
         "400": { $ref: "#/components/responses/Problem" }
 components:
   securitySchemes:
@@ -187,14 +195,24 @@ components:
   schemas:
     PlannerRequest:
       type: object
-      required: [zipCode, storeId, budgetDollars, householdSize, dinnerCount, plannedLeftovers, nutritionStyle, dietaryRestrictions, allergies, dislikedFoods, preferredCuisines, maxCookingMinutes, pantryItems, customInstruction]
+      required: [store, budgetCents, householdSize, dinnerCount, leftovers, nutritionStyle, dietaryRestrictions, allergies, dislikedFoods, preferredCuisines, maxCookingMinutes, pantryItems, customInstructions]
       properties:
-        zipCode: { type: string, pattern: "^[0-9]{5}$" }
-        storeId: { type: string }
-        budgetDollars: { type: integer, minimum: 20, maximum: 500 }
+        store:
+          type: object
+          required: [id, locationId, postalCode]
+          properties:
+            id: { type: string, minLength: 1 }
+            locationId: { type: string, minLength: 1 }
+            postalCode: { type: string, pattern: "^[0-9]{5}$" }
+        budgetCents: { type: integer, minimum: 2000, maximum: 50000 }
         householdSize: { type: integer, minimum: 1, maximum: 8 }
         dinnerCount: { type: integer, minimum: 3, maximum: 7 }
-        plannedLeftovers: { type: boolean }
+        leftovers:
+          type: object
+          required: [enabled, extraServings]
+          properties:
+            enabled: { type: boolean }
+            extraServings: { type: integer, minimum: 0, maximum: 8 }
         nutritionStyle:
           type: string
           enum: [balanced, high-protein, vegetarian, quick, budget-first, lighter]
@@ -204,7 +222,7 @@ components:
         preferredCuisines: { type: array, items: { type: string }, maxItems: 10 }
         maxCookingMinutes: { type: integer, minimum: 15, maximum: 90 }
         pantryItems: { type: array, items: { type: string }, maxItems: 50 }
-        customInstruction: { type: string, maxLength: 400 }
+        customInstructions: { type: string, maxLength: 400 }
     Store:
       type: object
       required: [id, name, retailer, address, zipCode, priceKind]
@@ -217,7 +235,7 @@ components:
         priceKind: { $ref: "#/components/schemas/PriceKind" }
     MealPlan:
       type: object
-      required: [id, title, store, budgetCents, estimatedTotalCents, priceCoverage, priceKind, meals, basket]
+      required: [id, title, store, budgetCents, estimatedTotalCents, priceCoverage, priceKind, meals, basket, constraintsUsed, internalTargetCents, priceObservedAt, createdAt, safetyNotice]
       properties:
         id: { type: string }
         title: { type: string }
@@ -228,9 +246,14 @@ components:
         priceKind: { $ref: "#/components/schemas/PriceKind" }
         meals: { type: array, items: { $ref: "#/components/schemas/Meal" } }
         basket: { type: array, items: { $ref: "#/components/schemas/BasketItem" } }
+        constraintsUsed: { $ref: "#/components/schemas/PlannerRequest" }
+        internalTargetCents: { type: integer, minimum: 0 }
+        priceObservedAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+        safetyNotice: { type: string }
     Meal:
       type: object
-      required: [id, day, title, description, servings, prepMinutes, cookMinutes, calories, proteinGrams, imageAlignment, ingredients, instructions]
+      required: [id, day, title, description, servings, prepMinutes, cookMinutes, calories, proteinGrams, imageAlignment, cuisine, tags, ingredients, instructions]
       properties:
         id: { type: string }
         day: { type: string }
@@ -242,6 +265,8 @@ components:
         calories: { type: integer, minimum: 0 }
         proteinGrams: { type: integer, minimum: 0 }
         imageAlignment: { type: number, minimum: 0, maximum: 1 }
+        cuisine: { type: string }
+        tags: { type: array, items: { type: string } }
         ingredients: { type: array, items: { $ref: "#/components/schemas/RecipeIngredient" } }
         instructions: { type: array, items: { type: string } }
     RecipeIngredient:

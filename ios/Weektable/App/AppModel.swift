@@ -12,8 +12,14 @@ enum RootFlow: Equatable {
 enum AppTab: Hashable {
     case week
     case groceries
-    case plan
-    case profile
+}
+
+enum StoreSearchState: Equatable {
+    case idle
+    case loading
+    case loaded
+    case unsupported
+    case failed
 }
 
 @MainActor
@@ -32,37 +38,91 @@ final class AppModel {
     var swapPreviews: [SwapPreview] = []
     var isLoadingSwaps = false
     var isApplyingSwap = false
+    var applyingSwapPreviewID: String?
+    var swapErrorMessage: String?
+    var weekNavigationPath: [String] = []
+    var paywallTrigger: PremiumFeature?
+    var settingsPresented = false
+    var completedPlanCount = 0
+    var completedSwapCount = 0
+    var entitlementCache = EntitlementCache()
+    var availableStores: [Store] = []
+    var storeSearchState: StoreSearchState = .idle
 
     let persistence: PersistenceController
+    let subscriptions: SubscriptionService
+    private let analytics: any AnalyticsClient
     private let repository: any PlanRepository
     private var generationTask: Task<Void, Never>?
 
     init(
         repository: any PlanRepository = DemoPlanRepository(),
-        persistence: PersistenceController
+        persistence: PersistenceController,
+        subscriptions: SubscriptionService,
+        analytics: any AnalyticsClient = NoOpAnalyticsClient()
     ) {
         self.repository = repository
         self.persistence = persistence
+        self.subscriptions = subscriptions
+        self.analytics = analytics
         restoreLocalState()
     }
 
+    func prepareForUse() async {
+        await analytics.track(.appOpened)
+        await subscriptions.prepare()
+        entitlementCache = EntitlementCache(
+            productIDs: subscriptions.verifiedProductIDs,
+            verifiedAt: .now
+        )
+        try? persistence.save(entitlementCache, key: PersistenceKey.entitlementCache)
+    }
+
     func showPlanner() {
+        try? persistence.save(true, key: PersistenceKey.hasCompletedWelcome)
         rootFlow = .planner
+        Task { await analytics.track(.plannerStarted) }
         Haptics.selection()
     }
 
+    func findStores(postalCode: String) async {
+        guard postalCode.count == 5, postalCode.allSatisfy(\.isNumber) else {
+            availableStores = []
+            storeSearchState = .idle
+            return
+        }
+        storeSearchState = .loading
+        do {
+            let stores = try await repository.findStores(postalCode: postalCode)
+            availableStores = stores
+            storeSearchState = stores.isEmpty ? .unsupported : .loaded
+            if !stores.contains(where: { $0.id == plannerDraft.storeID }), let first = stores.first {
+                plannerDraft.store = PlannerStoreConstraint(id: first.id, locationID: first.providerStoreID, postalCode: postalCode)
+            }
+        } catch {
+            availableStores = []
+            storeSearchState = .failed
+        }
+    }
+
     func updateDraft(_ draft: PlannerRequest) {
-        plannerDraft = draft
-        try? persistence.save(draft, key: PersistenceKey.plannerDraft)
+        var normalized = draft
+        if let selectedStore = availableStores.first(where: { $0.id == draft.storeID }) {
+            normalized.store = PlannerStoreConstraint(id: selectedStore.id, locationID: selectedStore.providerStoreID, postalCode: draft.zipCode)
+        }
+        plannerDraft = normalized
+        try? persistence.save(normalized, key: PersistenceKey.plannerDraft)
     }
 
     func beginGeneration() {
+        guard generationTask == nil else { return }
         generationTask?.cancel()
         generationTask = nil
         generationError = nil
         generationStage = .planning
         generationProgress = 0.05
         rootFlow = .generation
+        Task { await analytics.track(.generationStarted) }
         let request = plannerDraft
 
         generationTask = Task { [weak self] in
@@ -73,7 +133,8 @@ final class AppModel {
                 try? persistence.save(job, key: PersistenceKey.generationJob)
                 try await observeGeneration(job)
             } catch {
-                generationError = error.localizedDescription
+                generationError = userFacingMessage(for: error)
+                await analytics.track(.generationFailed)
                 Haptics.warning()
             }
         }
@@ -86,7 +147,7 @@ final class AppModel {
             do {
                 try await observeGeneration(job)
             } catch {
-                generationError = error.localizedDescription
+                generationError = userFacingMessage(for: error)
                 Haptics.warning()
             }
         }
@@ -114,6 +175,7 @@ final class AppModel {
     }
 
     func toggleChecked(_ itemID: String) {
+        let previousState = groceryState
         if groceryState.checkedItemIDs.contains(itemID) {
             groceryState.checkedItemIDs.remove(itemID)
         } else {
@@ -121,9 +183,12 @@ final class AppModel {
         }
         persistGroceryState()
         Haptics.lightImpact()
+        Task { await analytics.track(.groceryItemChecked) }
+        synchronizeGroceryState(previousState: previousState, failureAnnouncement: "The checkoff could not be saved")
     }
 
     func toggleOwned(_ itemID: String) {
+        let previousState = groceryState
         if groceryState.ownedItemIDs.contains(itemID) {
             groceryState.ownedItemIDs.remove(itemID)
         } else {
@@ -131,17 +196,27 @@ final class AppModel {
         }
         persistGroceryState()
         Haptics.selection()
+        Task { await analytics.track(.pantryItemChanged) }
+        synchronizeGroceryState(previousState: previousState, failureAnnouncement: "The pantry change could not be saved", announceBasket: true)
     }
 
     func openSwap(for meal: Meal) {
+        guard subscriptions.isPro || completedSwapCount == 0 else {
+            presentPaywall(for: .additionalSwap)
+            return
+        }
         swapMeal = meal
+        Task { await analytics.track(.swapOpened) }
         swapPreviews = []
+        swapErrorMessage = nil
         isLoadingSwaps = true
         Task {
             do {
                 swapPreviews = try await repository.swapPreviews(planID: plan?.id ?? "", mealID: meal.id)
             } catch {
                 swapPreviews = []
+                swapErrorMessage = "Alternatives could not be loaded. Check your connection and try again."
+                Haptics.warning()
             }
             isLoadingSwaps = false
         }
@@ -150,6 +225,8 @@ final class AppModel {
     func applySwap(_ preview: SwapPreview) {
         guard let plan, let swapMeal else { return }
         isApplyingSwap = true
+        applyingSwapPreviewID = preview.id
+        swapErrorMessage = nil
         Task {
             do {
                 let updated = try await repository.applySwap(
@@ -159,21 +236,47 @@ final class AppModel {
                 )
                 self.plan = updated
                 try? persistence.save(updated, key: PersistenceKey.cachedPlan)
+                completedSwapCount += 1
+                try? persistence.save(completedSwapCount, key: PersistenceKey.completedSwapCount)
                 self.swapMeal = nil
+                await analytics.track(.swapCompleted)
                 Haptics.success()
                 UIAccessibility.post(notification: .announcement, argument: "Meal swapped. New basket total \(updated.estimatedTotalCents.currency).")
             } catch {
+                swapErrorMessage = "We couldn’t update the basket. Your original meal is unchanged. Try again."
                 Haptics.warning()
             }
             isApplyingSwap = false
+            applyingSwapPreviewID = nil
         }
     }
 
     func dismissSwap() { swapMeal = nil }
 
     func planAnotherWeek() {
+        guard subscriptions.isPro || completedPlanCount == 0 else {
+            presentPaywall(for: .anotherWeek)
+            return
+        }
+        startPlannerForAnotherWeek()
+    }
+
+    func startPlannerForAnotherWeek() {
+        paywallTrigger = nil
+        weekNavigationPath.removeAll()
         selectedTab = .week
         rootFlow = .planner
+    }
+
+    func presentSettings() {
+        settingsPresented = true
+        Haptics.selection()
+    }
+
+    func presentPaywall(for feature: PremiumFeature) {
+        paywallTrigger = feature
+        Haptics.selection()
+        Task { await analytics.track(.paywallViewed) }
     }
 
     var groceryTotalCents: Int {
@@ -198,16 +301,27 @@ final class AppModel {
         persistGroceryState()
         selectedTab = .week
         rootFlow = .main
+        completedPlanCount += 1
+        try? persistence.save(completedPlanCount, key: PersistenceKey.completedPlanCount)
         Haptics.success()
+        await analytics.track(.generationCompleted)
         UIAccessibility.post(notification: .screenChanged, argument: "Your week is ready")
     }
 
     private func restoreLocalState() {
         plannerDraft = (try? persistence.load(PlannerRequest.self, key: PersistenceKey.plannerDraft)) ?? PlannerRequest()
+        completedPlanCount = (try? persistence.load(Int.self, key: PersistenceKey.completedPlanCount)) ?? 0
+        completedSwapCount = (try? persistence.load(Int.self, key: PersistenceKey.completedSwapCount)) ?? 0
+        entitlementCache = (try? persistence.load(EntitlementCache.self, key: PersistenceKey.entitlementCache)) ?? EntitlementCache()
+        let completedWelcome = (try? persistence.load(Bool.self, key: PersistenceKey.hasCompletedWelcome)) ?? false
         let savedGroceryState = try? persistence.load(GroceryState.self, key: PersistenceKey.groceryState)
         groceryState = savedGroceryState ?? GroceryState()
         if let cached = try? persistence.load(MealPlan.self, key: PersistenceKey.cachedPlan) {
             plan = cached
+            if completedPlanCount == 0 {
+                completedPlanCount = 1
+                try? persistence.save(completedPlanCount, key: PersistenceKey.completedPlanCount)
+            }
             if savedGroceryState == nil {
                 groceryState.ownedItemIDs = Set(cached.basket.filter(\.pantryStatus).map(\.id))
             }
@@ -216,11 +330,38 @@ final class AppModel {
         if let job = try? persistence.load(GenerationJob.self, key: PersistenceKey.generationJob) {
             pendingGenerationJob = job
             rootFlow = .generation
+        } else if plan == nil, completedWelcome {
+            rootFlow = .planner
         }
     }
 
     private func persistGroceryState() {
         try? persistence.save(groceryState, key: PersistenceKey.groceryState)
+    }
+
+    private func synchronizeGroceryState(
+        previousState: GroceryState,
+        failureAnnouncement: String,
+        announceBasket: Bool = false
+    ) {
+        guard let plan else { return }
+        let stateToSync = groceryState
+        Task {
+            do {
+                let updatedPlan = try await repository.updateGroceryState(planID: plan.id, state: stateToSync)
+                self.plan = updatedPlan
+                try? persistence.save(updatedPlan, key: PersistenceKey.cachedPlan)
+                if announceBasket {
+                    UIAccessibility.post(notification: .announcement, argument: "Basket total updated to \(groceryTotalCents.currency)")
+                }
+            } catch {
+                guard groceryState == stateToSync else { return }
+                groceryState = previousState
+                persistGroceryState()
+                Haptics.warning()
+                UIAccessibility.post(notification: .announcement, argument: failureAnnouncement)
+            }
+        }
     }
 
     private func observeGeneration(_ job: GenerationJob) async throws {
@@ -235,5 +376,25 @@ final class AppModel {
                 return
             }
         }
+    }
+
+    private func userFacingMessage(for error: Error) -> String {
+        if let planningError = error as? DemoPlanningError {
+            return planningError.localizedDescription
+        }
+        if let apiError = error as? APIError {
+            switch apiError {
+            case .invalidResponse:
+                return "Weektable received an incomplete response. Your answers are saved—please try again."
+            case .server(let status, _):
+                if status == 409 { return "These choices could not produce a safe week within the budget. Review your answers and try again." }
+                if status == 422 { return "One or more choices need attention. Review your planner answers and try again." }
+                if status >= 500 { return "Weektable is temporarily unavailable. Your answers are saved, so you can retry shortly." }
+            }
+        }
+        if error is URLError {
+            return "You appear to be offline. Your answers are saved and generation can resume when you reconnect."
+        }
+        return "Your week could not be completed. Your answers are saved—please try again."
     }
 }

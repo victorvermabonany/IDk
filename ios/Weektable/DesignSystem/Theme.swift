@@ -30,6 +30,9 @@ enum WeektableTheme {
             : UIColor(red: 0.08, green: 0.42, blue: 0.29, alpha: 1)
     })
     static let warning = Color(uiColor: .systemYellow)
+    static let error = Color(uiColor: .systemRed)
+    static let selected = brand.opacity(0.14)
+    static let disabled = Color(uiColor: .tertiaryLabel)
     static let divider = Color(uiColor: .separator)
     static let cardRadius: CGFloat = 22
     static let controlRadius: CGFloat = 14
@@ -104,4 +107,3 @@ enum Haptics {
     static func warning() { UINotificationFeedbackGenerator().notificationOccurred(.warning) }
     static func lightImpact() { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
 }
-

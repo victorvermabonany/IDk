@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct ProfileView: View {
+    @Bindable var appModel: AppModel
+
     var body: some View {
         List {
             Section {
@@ -17,14 +19,36 @@ struct ProfileView: View {
             }
 
             Section("Preferences") {
-                Label("Diet and allergies", systemImage: "checklist")
-                Label("Stores and location", systemImage: "mappin.and.ellipse")
-                Label("Notifications", systemImage: "bell")
+                NavigationLink {
+                    ProfileInfoView(title: "Diet and allergies", symbol: "checklist", rows: [
+                        ("Dinner style", appModel.plannerDraft.nutritionStyle.title),
+                        ("Allergies", appModel.plannerDraft.allergies.isEmpty ? "None selected" : appModel.plannerDraft.allergies.sorted().joined(separator: ", ")),
+                        ("Foods to avoid", appModel.plannerDraft.dislikedFoods.isEmpty ? "None" : appModel.plannerDraft.dislikedFoods)
+                    ])
+                } label: { Label("Diet and allergies", systemImage: "checklist") }
+
+                NavigationLink {
+                    ProfileInfoView(title: "Stores and location", symbol: "mappin.and.ellipse", rows: [
+                        ("Store", appModel.plan?.store.name ?? "Not selected"),
+                        ("ZIP code", appModel.plannerDraft.zipCode),
+                        ("Price source", appModel.plan?.priceKind.rawValue.capitalized ?? "Not available")
+                    ])
+                } label: { Label("Stores and location", systemImage: "mappin.and.ellipse") }
+
+                HStack {
+                    Label("Notifications", systemImage: "bell")
+                    Spacer()
+                    Text("Coming soon").font(.caption).foregroundStyle(.secondary)
+                }
             }
 
             Section("About") {
-                Label("Price and nutrition sources", systemImage: "info.circle")
-                Label("Privacy", systemImage: "hand.raised")
+                NavigationLink {
+                    ProfileTextView(title: "Price and nutrition sources", symbol: "info.circle", text: "Weektable uses complete-package catalog prices and always identifies the source. Demo catalog prices are deterministic fixtures, not current store quotes. Nutrition values are planning estimates, not medical guidance.")
+                } label: { Label("Price and nutrition sources", systemImage: "info.circle") }
+                NavigationLink {
+                    ProfileTextView(title: "Privacy", symbol: "hand.raised", text: "Your latest planner answers, cached plan, and grocery progress are stored on this iPhone. Weektable does not require an account for the core planning flow.")
+                } label: { Label("Privacy", systemImage: "hand.raised") }
                 HStack {
                     Text("Version")
                     Spacer()
@@ -36,3 +60,43 @@ struct ProfileView: View {
     }
 }
 
+private struct ProfileInfoView: View {
+    let title: String
+    let symbol: String
+    let rows: [(String, String)]
+
+    var body: some View {
+        List {
+            Section {
+                ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                    LabeledContent(row.0, value: row.1)
+                }
+            } footer: {
+                Text("Edit these preferences from the Plan tab before creating your next week.")
+            }
+        }
+        .navigationTitle(title)
+        .toolbar(.hidden, for: .tabBar)
+    }
+}
+
+private struct ProfileTextView: View {
+    let title: String
+    let symbol: String
+    let text: String
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                Image(systemName: symbol).font(.largeTitle).foregroundStyle(WeektableTheme.brand)
+                Text(title).font(.largeTitle.bold()).accessibilityAddTraits(.isHeader)
+                Text(text).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(WeektableTheme.pagePadding)
+        }
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .tabBar)
+    }
+}

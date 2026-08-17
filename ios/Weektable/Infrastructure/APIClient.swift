@@ -46,7 +46,8 @@ actor APIClient {
         body: (any Encodable)? = nil,
         idempotencyKey: String? = nil
     ) async throws -> Response {
-        var request = URLRequest(url: baseURL.appending(path: path))
+        guard let url = URL(string: path, relativeTo: baseURL)?.absoluteURL else { throw APIError.invalidResponse }
+        var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         if let body {
@@ -67,6 +68,28 @@ actor APIClient {
             throw APIError.server(status: http.statusCode, message: envelope?.error.message ?? "Request failed.")
         }
         return try decoder.decode(Response.self, from: data)
+    }
+
+    func sendEmpty(
+        _ path: String,
+        method: String,
+        body: any Encodable
+    ) async throws {
+        guard let url = URL(string: path, relativeTo: baseURL)?.absoluteURL else { throw APIError.invalidResponse }
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.httpBody = try encoder.encode(AnyEncodable(body))
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let token = await sessionToken() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        guard (200..<300).contains(http.statusCode) else {
+            let envelope = try? decoder.decode(APIErrorEnvelope.self, from: data)
+            throw APIError.server(status: http.statusCode, message: envelope?.error.message ?? "Request failed.")
+        }
     }
 }
 

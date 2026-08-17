@@ -3,12 +3,24 @@ import Foundation
 enum DemoData {
     static let store = Store(
         id: "demo-kroger-45202",
-        name: "Kroger · Downtown demo",
+        name: "Kroger · Downtown sample catalog",
         retailer: "Kroger family",
         address: "Cincinnati, OH 45202",
         zipCode: "45202",
         priceKind: .fixture
     )
+
+    static let valueStore = Store(
+        id: "demo-value-45202",
+        providerStoreID: "fixture-value-45202",
+        name: "Weektable Value Market · Sample catalog",
+        retailer: "Weektable Value Market",
+        address: "Cincinnati, OH 45202",
+        zipCode: "45202",
+        priceKind: .fixture
+    )
+
+    static let stores = [store, valueStore]
 
     private static let seasoning: [RecipeIngredient] = [
         .init(ingredientID: "olive_oil", name: "Olive oil", quantity: 1, unit: "tbsp"),
@@ -125,6 +137,109 @@ enum DemoData {
                 .init(ingredientID: "cheddar", name: "Sharp cheddar", quantity: 4, unit: "oz")
             ] + seasoning,
             instructions: ["Cook diced pepper with the beans.", "Layer tortillas with cheddar and filling, then crisp in a skillet.", "Serve with lime yogurt."]
+        ),
+        Meal(
+            id: "tofu-rice-bowls", day: "Monday", title: "Ginger tofu rice bowls",
+            description: "Crisp tofu, brown rice, broccoli, and peppers with a savory ginger-soy glaze.",
+            servings: 2, prepMinutes: 10, cookMinutes: 18, calories: 540, proteinGrams: 29, imageAlignment: 0.46,
+            ingredients: [
+                .init(ingredientID: "tofu", name: "Extra-firm tofu", quantity: 14, unit: "oz"),
+                .init(ingredientID: "brown_rice", name: "Brown rice", quantity: 8, unit: "oz"),
+                .init(ingredientID: "broccoli", name: "Broccoli", quantity: 1, unit: "count"),
+                .init(ingredientID: "bell_pepper", name: "Bell pepper", quantity: 1, unit: "count"),
+                .init(ingredientID: "soy_sauce", name: "Soy sauce", quantity: 2, unit: "tbsp")
+            ] + seasoning,
+            instructions: ["Cook the rice.", "Sear cubed tofu until crisp, then add broccoli and pepper.", "Add soy sauce and serve over rice."]
+        ),
+        Meal(
+            id: "lentil-tomato-bowls", day: "Tuesday", title: "Smoky lentil tomato bowls",
+            description: "Tender lentils and tomatoes with peppers, spinach, and warm smoked paprika.",
+            servings: 2, prepMinutes: 8, cookMinutes: 20, calories: 470, proteinGrams: 25, imageAlignment: 0.58,
+            ingredients: [
+                .init(ingredientID: "lentils", name: "Cooked lentils", quantity: 15, unit: "oz"),
+                .init(ingredientID: "crushed_tomatoes", name: "Crushed tomatoes", quantity: 14, unit: "oz"),
+                .init(ingredientID: "spinach", name: "Baby spinach", quantity: 5, unit: "oz"),
+                .init(ingredientID: "bell_pepper", name: "Bell pepper", quantity: 1, unit: "count"),
+                .init(ingredientID: "smoked_paprika", name: "Smoked paprika", quantity: 1, unit: "tsp")
+            ] + seasoning,
+            instructions: ["Soften diced pepper in olive oil.", "Add lentils, tomatoes, and paprika; simmer until thick.", "Fold in spinach and season."]
+        ),
+        Meal(
+            id: "chickpea-coconut-curry", day: "Wednesday", title: "Chickpea coconut curry",
+            description: "A quick, mild chickpea curry with tomatoes and spinach over brown rice.",
+            servings: 2, prepMinutes: 8, cookMinutes: 20, calories: 560, proteinGrams: 22, imageAlignment: 0.62,
+            ingredients: [
+                .init(ingredientID: "chickpeas", name: "Chickpeas", quantity: 15, unit: "oz"),
+                .init(ingredientID: "coconut_milk", name: "Coconut milk", quantity: 13.5, unit: "fl_oz"),
+                .init(ingredientID: "crushed_tomatoes", name: "Crushed tomatoes", quantity: 14, unit: "oz"),
+                .init(ingredientID: "spinach", name: "Baby spinach", quantity: 5, unit: "oz"),
+                .init(ingredientID: "brown_rice", name: "Brown rice", quantity: 8, unit: "oz")
+            ] + seasoning,
+            instructions: ["Cook the rice.", "Simmer chickpeas, coconut milk, and tomatoes until thickened.", "Fold in spinach and serve over rice."]
+        ),
+        Meal(
+            id: "sweet-potato-tacos", day: "Thursday", title: "Sweet potato black bean tacos",
+            description: "Skillet sweet potato, black beans, peppers, and lime in warm corn tortillas.",
+            servings: 2, prepMinutes: 10, cookMinutes: 20, calories: 510, proteinGrams: 19, imageAlignment: 0.38,
+            ingredients: [
+                .init(ingredientID: "sweet_potato", name: "Sweet potato", quantity: 1, unit: "lb"),
+                .init(ingredientID: "black_beans", name: "Black beans", quantity: 15, unit: "oz"),
+                .init(ingredientID: "corn_tortillas", name: "Corn tortillas", quantity: 6, unit: "count"),
+                .init(ingredientID: "bell_pepper", name: "Bell pepper", quantity: 1, unit: "count"),
+                .init(ingredientID: "lime", name: "Lime", quantity: 1, unit: "count")
+            ] + seasoning,
+            instructions: ["Dice and skillet-cook the sweet potato until tender.", "Add pepper and beans and season.", "Fill warm corn tortillas and finish with lime."]
+        ),
+        Meal(
+            id: "mediterranean-quinoa", day: "Friday", title: "Mediterranean chickpea quinoa",
+            description: "Fluffy quinoa, chickpeas, spinach, peppers, and bright lemony seasoning.",
+            servings: 2, prepMinutes: 10, cookMinutes: 18, calories: 500, proteinGrams: 23, imageAlignment: 0.52,
+            ingredients: [
+                .init(ingredientID: "quinoa", name: "Quinoa", quantity: 8, unit: "oz"),
+                .init(ingredientID: "chickpeas", name: "Chickpeas", quantity: 15, unit: "oz"),
+                .init(ingredientID: "spinach", name: "Baby spinach", quantity: 5, unit: "oz"),
+                .init(ingredientID: "bell_pepper", name: "Bell pepper", quantity: 1, unit: "count"),
+                .init(ingredientID: "lime", name: "Lime", quantity: 1, unit: "count")
+            ] + seasoning,
+            instructions: ["Cook the quinoa until fluffy.", "Warm chickpeas and pepper in a skillet.", "Fold in spinach, quinoa, and lime."]
+        ),
+        Meal(
+            id: "tofu-quinoa-skillet", day: "Saturday", title: "Crispy tofu quinoa skillet",
+            description: "Protein-rich tofu and quinoa with broccoli and a savory soy finish.",
+            servings: 2, prepMinutes: 8, cookMinutes: 20, calories: 530, proteinGrams: 32, imageAlignment: 0.42,
+            ingredients: [
+                .init(ingredientID: "tofu", name: "Extra-firm tofu", quantity: 14, unit: "oz"),
+                .init(ingredientID: "quinoa", name: "Quinoa", quantity: 8, unit: "oz"),
+                .init(ingredientID: "broccoli", name: "Broccoli", quantity: 1, unit: "count"),
+                .init(ingredientID: "soy_sauce", name: "Soy sauce", quantity: 2, unit: "tbsp")
+            ] + seasoning,
+            instructions: ["Cook the quinoa.", "Sear cubed tofu and broccoli until browned.", "Add soy sauce and fold in quinoa."]
+        ),
+        Meal(
+            id: "lentil-rice-peppers", day: "Sunday", title: "Lentil rice pepper bowls",
+            description: "Brown rice, lentils, peppers, spinach, and smoky seasoning in one quick bowl.",
+            servings: 2, prepMinutes: 8, cookMinutes: 20, calories: 490, proteinGrams: 26, imageAlignment: 0.56,
+            ingredients: [
+                .init(ingredientID: "lentils", name: "Cooked lentils", quantity: 15, unit: "oz"),
+                .init(ingredientID: "brown_rice", name: "Brown rice", quantity: 8, unit: "oz"),
+                .init(ingredientID: "bell_pepper", name: "Bell pepper", quantity: 1, unit: "count"),
+                .init(ingredientID: "spinach", name: "Baby spinach", quantity: 5, unit: "oz"),
+                .init(ingredientID: "smoked_paprika", name: "Smoked paprika", quantity: 1, unit: "tsp")
+            ] + seasoning,
+            instructions: ["Cook the rice.", "Warm lentils with pepper and paprika.", "Fold in spinach and serve over rice."]
+        ),
+        Meal(
+            id: "egg-quinoa-bowls", day: "Monday", title: "Egg and quinoa power bowls",
+            description: "Jammy eggs, quinoa, spinach, and crisp peppers with a bright lime finish.",
+            servings: 2, prepMinutes: 8, cookMinutes: 15, calories: 480, proteinGrams: 28, imageAlignment: 0.48,
+            ingredients: [
+                .init(ingredientID: "eggs", name: "Eggs", quantity: 4, unit: "count"),
+                .init(ingredientID: "quinoa", name: "Quinoa", quantity: 8, unit: "oz"),
+                .init(ingredientID: "spinach", name: "Baby spinach", quantity: 5, unit: "oz"),
+                .init(ingredientID: "bell_pepper", name: "Bell pepper", quantity: 1, unit: "count"),
+                .init(ingredientID: "lime", name: "Lime", quantity: 1, unit: "count")
+            ] + seasoning,
+            instructions: ["Cook the quinoa and eggs.", "Quickly sauté pepper and spinach.", "Build bowls and finish with lime."]
         )
     ]
 
@@ -167,4 +282,3 @@ enum DemoData {
                  meals: Array(meals.prefix(5)), basket: basket)
     }
 }
-

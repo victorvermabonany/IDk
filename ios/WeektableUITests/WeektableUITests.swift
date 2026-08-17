@@ -5,14 +5,13 @@ final class WeektableUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
-        if app.buttons["Plan my week"].waitForExistence(timeout: 2) {
-            app.buttons["Plan my week"].tap()
+        if app.buttons["Plan my first week"].waitForExistence(timeout: 2) {
+            app.buttons["Plan my first week"].tap()
             XCTAssertTrue(app.staticTexts["Where are you shopping?"].waitForExistence(timeout: 2))
-            app.buttons["Continue"].tap()
-            XCTAssertTrue(app.staticTexts["How much dinner do you need?"].exists)
+            XCTAssertTrue(app.buttons["Find stores"].exists)
         } else {
             XCTAssertTrue(app.tabBars.buttons["Week"].waitForExistence(timeout: 2))
+            XCTAssertTrue(app.tabBars.buttons["Groceries"].exists)
         }
     }
 }
-

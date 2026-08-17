@@ -8,7 +8,7 @@ struct RecipeDetailView: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 24) {
-                Image("weektable-dinners")
+                Image(meal.imageAssetName)
                     .resizable()
                     .scaledToFill()
                     .frame(height: 270)
@@ -19,15 +19,23 @@ struct RecipeDetailView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     SectionLabel(text: "\(meal.day) dinner")
                     Text(meal.title)
-                        .font(.largeTitle.bold())
+                        .font(.title.bold())
                         .accessibilityAddTraits(.isHeader)
                     Text(meal.description)
                         .font(.body).foregroundStyle(.secondary)
 
-                    HStack(spacing: 10) {
-                        RecipeStat(value: "\(meal.totalMinutes)m", label: "Time")
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                        RecipeStat(value: "\(meal.prepMinutes)m", label: "Prep")
+                        RecipeStat(value: "\(meal.cookMinutes)m", label: "Cook")
                         RecipeStat(value: "\(meal.servings)", label: "Servings")
                         RecipeStat(value: "\(meal.proteinGrams)g", label: "Protein")
+                    }
+
+                    if ingredientReuseCount > 0 {
+                        Label("\(ingredientReuseCount) ingredients also work in another dinner this week", systemImage: "arrow.triangle.2.circlepath")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 .padding(.horizontal, WeektableTheme.pagePadding)
@@ -70,12 +78,13 @@ struct RecipeDetailView: View {
                 }
                 .padding(.horizontal, WeektableTheme.pagePadding)
 
-                Label("Nutrition is an approximate planning estimate, not medical guidance.", systemImage: "heart.text.square")
-                    .font(.caption).foregroundStyle(.secondary)
+                Label("Approximately \(meal.calories) calories and \(meal.proteinGrams)g protein per serving. Nutrition is a planning estimate, not medical guidance.", systemImage: "heart.text.square")
+                    .font(.footnote).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, WeektableTheme.pagePadding)
 
                 Label("Selected allergies are hard recipe constraints. Always verify packaged-food labels and cross-contact warnings.", systemImage: "exclamationmark.shield.fill")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.footnote).foregroundStyle(.primary.opacity(0.78))
                     .padding(16)
                     .background(WeektableTheme.warning.opacity(0.18), in: RoundedRectangle(cornerRadius: WeektableTheme.controlRadius))
                     .padding(.horizontal, WeektableTheme.pagePadding)
@@ -85,20 +94,30 @@ struct RecipeDetailView: View {
         .background(WeektableTheme.canvas)
         .navigationTitle(meal.day)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .tabBar)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button(cookingMode ? "Standard text" : "Cooking text", systemImage: cookingMode ? "textformat.size.smaller" : "textformat.size.larger") {
                     cookingMode.toggle()
                     Haptics.selection()
                 }
+                .accessibilityLabel(cookingMode ? "Use standard text size" : "Use larger cooking text")
                 Menu {
                     Button("Swap this dinner", systemImage: "arrow.triangle.2.circlepath") { appModel.openSwap(for: meal) }
                     Button("Open groceries", systemImage: "cart") { appModel.selectGroceries() }
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
+                .accessibilityLabel("Recipe actions")
             }
         }
+    }
+
+    private var ingredientReuseCount: Int {
+        guard let plan = appModel.plan else { return 0 }
+        return plan.basket.filter { item in
+            item.mealIDs.contains(meal.id) && item.mealIDs.count > 1
+        }.count
     }
 }
 
@@ -117,4 +136,3 @@ private struct RecipeStat: View {
         .accessibilityElement(children: .combine)
     }
 }
-

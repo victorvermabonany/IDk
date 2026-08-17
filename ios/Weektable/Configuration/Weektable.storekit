@@ -1,0 +1,87 @@
+{
+  "identifier" : "8C58D83F-9D87-47D3-B849-0DC2EC587E4F",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+
+  ],
+  "settings" : {
+    "_applicationInternalID" : "",
+    "_developerTeamID" : "",
+    "_failTransactionsEnabled" : false,
+    "_lastSynchronizedDate" : 0,
+    "_locale" : "en_US",
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+
+    ]
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "F9F40A8B-323D-4315-84AE-72805C6D91E2",
+      "localizations" : [
+        {
+          "description" : "Unlimited weekly grocery planning and meal swaps.",
+          "displayName" : "Weektable Pro",
+          "locale" : "en_US"
+        }
+      ],
+      "name" : "Weektable Pro",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "4.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "13D03792-5553-4D67-AB31-83334FCA8314",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Plan and rebalance every week.",
+              "displayName" : "Weektable Pro Monthly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.weektable.pro.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Weektable Pro Monthly",
+          "subscriptionGroupID" : "F9F40A8B-323D-4315-84AE-72805C6D91E2"
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "39.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "0AF310E2-2445-47AF-A6F8-B7EB75D51077",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Plan and rebalance every week.",
+              "displayName" : "Weektable Pro Annual",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.weektable.pro.annual",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Weektable Pro Annual",
+          "subscriptionGroupID" : "F9F40A8B-323D-4315-84AE-72805C6D91E2"
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

@@ -7,7 +7,11 @@ struct WeektableApp: App {
 
     init() {
         let persistence = PersistenceController()
-        _appModel = State(initialValue: AppModel(persistence: persistence))
+        _appModel = State(initialValue: AppModel(
+            repository: AppConfiguration.makePlanRepository(),
+            persistence: persistence,
+            subscriptions: SubscriptionService()
+        ))
     }
 
     var body: some Scene {
@@ -22,6 +26,7 @@ struct WeektableApp: App {
 
 struct RootView: View {
     @Bindable var appModel: AppModel
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         Group {
@@ -37,6 +42,12 @@ struct RootView: View {
             }
         }
         .background(WeektableTheme.canvas.ignoresSafeArea())
-        .task { appModel.resumeGenerationIfNeeded() }
+        .task {
+            await appModel.prepareForUse()
+            appModel.resumeGenerationIfNeeded()
+        }
+        .onChange(of: scenePhase) { _, nextPhase in
+            if nextPhase == .active { appModel.resumeGenerationIfNeeded() }
+        }
     }
 }

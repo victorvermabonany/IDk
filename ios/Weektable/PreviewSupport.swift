@@ -4,7 +4,7 @@ import SwiftUI
 enum PreviewFactory {
     static func model(withPlan: Bool = true) -> AppModel {
         let persistence = PersistenceController(inMemory: true)
-        let model = AppModel(persistence: persistence)
+        let model = AppModel(persistence: persistence, subscriptions: SubscriptionService())
         model.plan = withPlan ? DemoData.plan : nil
         if withPlan {
             model.groceryState.ownedItemIDs = Set(DemoData.plan.basket.filter(\.pantryStatus).map(\.id))

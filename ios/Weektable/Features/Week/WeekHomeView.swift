@@ -46,8 +46,11 @@ struct WeekHomeView: View {
             }
         }
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
                 Button("Plan another week", systemImage: "plus") { appModel.planAnotherWeek() }
+                    .labelStyle(.iconOnly)
+                    .accessibilityHint("Starts a new weekly plan")
+                Button("Settings", systemImage: "person.crop.circle") { appModel.presentSettings() }
                     .labelStyle(.iconOnly)
             }
         }
@@ -55,12 +58,14 @@ struct WeekHomeView: View {
 
     private func weekSummary(_ plan: MealPlan) -> some View {
         ZStack(alignment: .bottomLeading) {
-            Image("weektable-dinners")
-                .resizable()
-                .scaledToFill()
-                .frame(height: dynamicTypeSize.isAccessibilitySize ? 410 : 300)
+            Color.black
+                .overlay {
+                    Image("weektable-dinners")
+                        .resizable()
+                        .scaledToFill()
+                        .accessibilityHidden(true)
+                }
                 .clipped()
-                .accessibilityHidden(true)
 
             LinearGradient(
                 colors: [.black.opacity(0.05), .black.opacity(0.86)],
@@ -69,18 +74,13 @@ struct WeekHomeView: View {
             )
 
             VStack(alignment: .leading, spacing: 14) {
-                ViewThatFits(in: .horizontal) {
-                    HStack {
-                        Text("THIS WEEK")
-                            .font(.caption.weight(.black)).tracking(1)
-                        Spacer()
-                        Label("\(plan.meals.count) dinners", systemImage: "fork.knife")
-                            .font(.subheadline.weight(.semibold))
-                    }
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("THIS WEEK").font(.caption.weight(.black)).tracking(1)
-                        Label("\(plan.meals.count) dinners", systemImage: "fork.knife")
-                    }
+                HStack(spacing: 12) {
+                    Text("THIS WEEK")
+                        .font(.caption.weight(.black)).tracking(1)
+                    Spacer(minLength: 8)
+                    Text("\(plan.meals.count) dinners")
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
                 }
 
                 HStack(alignment: .lastTextBaseline, spacing: 5) {
@@ -92,12 +92,12 @@ struct WeekHomeView: View {
                 }
 
                 ViewThatFits(in: .horizontal) {
-                    HStack {
+                    HStack(spacing: 8) {
                         remainingLabel(plan)
-                        Spacer()
+                        Spacer(minLength: 4)
                         groceryButton
                     }
-                    VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 10) {
                         remainingLabel(plan)
                         groceryButton
                     }
@@ -115,6 +115,7 @@ struct WeekHomeView: View {
     private func remainingLabel(_ plan: MealPlan) -> some View {
         Label("\(plan.remainingCents.currency) left", systemImage: "checkmark.circle.fill")
             .font(.headline)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private var groceryButton: some View {
@@ -130,6 +131,7 @@ struct WeekHomeView: View {
                 .clipShape(Capsule())
         }
         .accessibilityHint("Opens the grocery list tab")
+        .frame(minWidth: 44, minHeight: 44)
     }
 }
 
@@ -141,7 +143,7 @@ private struct MealCard: View {
         VStack(alignment: .leading, spacing: 0) {
             NavigationLink(value: meal.id) {
                 VStack(alignment: .leading, spacing: 0) {
-                    Image("weektable-dinners")
+                    Image(meal.imageAssetName)
                         .resizable()
                         .scaledToFill()
                         .frame(height: 178)

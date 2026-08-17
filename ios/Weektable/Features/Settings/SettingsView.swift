@@ -1,0 +1,156 @@
+import SwiftUI
+
+struct SettingsView: View {
+    @Bindable var appModel: AppModel
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        List {
+            Section {
+                HStack(spacing: 14) {
+                    Image(systemName: "person.crop.circle.fill")
+                        .font(.system(size: 44))
+                        .foregroundStyle(WeektableTheme.brand)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Your Weektable").font(.headline)
+                        Text("Plans and shopping progress are saved on this iPhone")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.vertical, 6)
+            }
+
+            Section("Weektable Pro") {
+                NavigationLink {
+                    SubscriptionSettingsView(appModel: appModel)
+                } label: {
+                    Label {
+                        LabeledContent("Subscription", value: appModel.subscriptions.isPro ? "Pro active" : "Free")
+                    } icon: {
+                        Image(systemName: "crown.fill").foregroundStyle(WeektableTheme.brand)
+                    }
+                }
+            }
+
+            Section("Planning defaults") {
+                NavigationLink {
+                    PlanSettingsView(appModel: appModel)
+                } label: {
+                    Label("Store, budget and food preferences", systemImage: "slider.horizontal.3")
+                }
+            }
+
+            Section("About your data") {
+                NavigationLink {
+                    SettingsTextView(
+                        title: "Prices and nutrition",
+                        symbol: "info.circle",
+                        text: "Weektable uses complete-package grocery catalog prices and identifies their source. Fixture prices are sample data, not current retailer quotes. Nutrition values are planning estimates, not medical guidance."
+                    )
+                } label: {
+                    Label("Prices and nutrition", systemImage: "info.circle")
+                }
+
+                NavigationLink {
+                    SettingsTextView(
+                        title: "Privacy",
+                        symbol: "hand.raised",
+                        text: "Planner answers are sent to the configured Weektable backend when live planning is enabled. The server may use OpenAI for recipe proposals and a grocery provider for products and prices. Your cached plan and grocery progress are stored on this iPhone. Allergy names should not be included in general analytics events."
+                    )
+                } label: {
+                    Label("Privacy information", systemImage: "hand.raised")
+                }
+            }
+
+            Section {
+                LabeledContent("Version", value: appVersion)
+            } footer: {
+                Text("Legal URLs and customer-support contact must be configured before App Store submission.")
+            }
+        }
+        .navigationTitle("Settings")
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Done") { dismiss() }.fontWeight(.semibold)
+            }
+        }
+    }
+
+    private var appVersion: String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
+        return "\(version) (\(build))"
+    }
+}
+
+private struct SubscriptionSettingsView: View {
+    @Bindable var appModel: AppModel
+    @State private var statusMessage: String?
+    @State private var showingPaywall = false
+
+    var body: some View {
+        List {
+            Section {
+                LabeledContent("Current access", value: appModel.subscriptions.isPro ? "Weektable Pro" : "Free")
+                if !appModel.subscriptions.isPro {
+                    Button("View Weektable Pro") { showingPaywall = true }
+                }
+            }
+            Section {
+                Button(appModel.subscriptions.isRestoring ? "Restoring purchases…" : "Restore purchases") {
+                    Task {
+                        let result = await appModel.subscriptions.restorePurchases()
+                        switch result {
+                        case .purchased:
+                            statusMessage = "Weektable Pro has been restored."
+                            Haptics.success()
+                        case .failed(let message):
+                            statusMessage = message
+                            Haptics.warning()
+                        case .pending:
+                            statusMessage = "The App Store is still processing this purchase."
+                        case .cancelled:
+                            statusMessage = nil
+                        }
+                    }
+                }
+                .disabled(appModel.subscriptions.isRestoring)
+            } footer: {
+                if let statusMessage { Text(statusMessage) }
+            }
+        }
+        .navigationTitle("Subscription")
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showingPaywall) {
+            PaywallView(appModel: appModel, feature: .general)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(30)
+        }
+    }
+}
+
+private struct SettingsTextView: View {
+    let title: String
+    let symbol: String
+    let text: String
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                Image(systemName: symbol)
+                    .font(.largeTitle)
+                    .foregroundStyle(WeektableTheme.brand)
+                Text(title).font(.title.bold()).accessibilityAddTraits(.isHeader)
+                Text(text)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(WeektableTheme.pagePadding)
+        }
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}

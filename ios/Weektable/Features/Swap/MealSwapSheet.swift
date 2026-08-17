@@ -32,6 +32,21 @@ struct MealSwapSheet: View {
                             swapCard(preview)
                         }
                     }
+
+                    if let error = appModel.swapErrorMessage {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label(error, systemImage: "exclamationmark.triangle.fill")
+                                .font(.subheadline)
+                                .foregroundStyle(.red)
+                            Button("Try again") {
+                                appModel.openSwap(for: meal)
+                            }
+                            .font(.headline)
+                        }
+                        .padding(16)
+                        .background(.red.opacity(0.1), in: RoundedRectangle(cornerRadius: WeektableTheme.controlRadius))
+                        .accessibilityElement(children: .contain)
+                    }
                 }
                 .padding(WeektableTheme.pagePadding)
             }
@@ -53,7 +68,7 @@ struct MealSwapSheet: View {
     private func swapCard(_ preview: SwapPreview) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 12) {
-                Image("weektable-dinners")
+                Image(preview.meal.imageAssetName)
                     .resizable().scaledToFill()
                     .frame(width: 88, height: 88).clipped()
                     .clipShape(RoundedRectangle(cornerRadius: 14))
@@ -62,7 +77,7 @@ struct MealSwapSheet: View {
                     Text(preview.meal.title).font(.headline)
                     Text("\(preview.meal.totalMinutes) min · reuses \(preview.reusedIngredientCount) basket ingredients")
                         .font(.caption).foregroundStyle(.secondary)
-                    Text(preview.deltaCents == 0 ? "No price change" : signedCurrency(preview.deltaCents))
+                    Text(deltaDescription(preview.deltaCents))
                         .font(.headline).monospacedDigit()
                         .foregroundStyle(preview.deltaCents <= 0 ? WeektableTheme.success : WeektableTheme.brand)
                 }
@@ -72,22 +87,39 @@ struct MealSwapSheet: View {
                 appModel.applySwap(preview)
             } label: {
                 HStack {
-                    Text("Choose this meal")
+                    if appModel.applyingSwapPreviewID == preview.id {
+                        ProgressView().tint(.white)
+                        Text("Updating basket…")
+                    } else {
+                        Text("Choose meal")
+                    }
                     Spacer()
-                    Text(preview.resultingTotalCents.currency).monospacedDigit()
+                    Text("New basket \(preview.resultingTotalCents.currency)").monospacedDigit()
                 }
             }
             .buttonStyle(PrimaryButtonStyle())
             .disabled(appModel.isApplyingSwap || preview.resultingTotalCents > (appModel.plan?.budgetCents ?? 0))
+
+            if preview.resultingTotalCents > (appModel.plan?.budgetCents ?? 0) {
+                Label("Over your weekly budget, so this option cannot be selected.", systemImage: "exclamationmark.triangle.fill")
+                    .font(.footnote)
+                    .foregroundStyle(WeektableTheme.error)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text("The amount above is the estimated total for your full weekly basket.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(16)
         .background(WeektableTheme.raised, in: RoundedRectangle(cornerRadius: WeektableTheme.cardRadius))
         .accessibilityElement(children: .contain)
     }
 
-    private func signedCurrency(_ cents: Int) -> String {
+    private func deltaDescription(_ cents: Int) -> String {
         let absolute = abs(cents).currency
-        return cents < 0 ? "−\(absolute)" : "+\(absolute)"
+        if cents < 0 { return "\(absolute) less" }
+        if cents > 0 { return "\(absolute) more" }
+        return "No price change"
     }
 }
-

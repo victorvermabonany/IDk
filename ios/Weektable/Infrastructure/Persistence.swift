@@ -25,10 +25,17 @@ final class PersistenceController {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: inMemory)
         do {
             container = try ModelContainer(for: PersistedPayload.self, configurations: configuration)
-            context = ModelContext(container)
         } catch {
-            fatalError("Unable to initialize Weektable persistence: \(error)")
+            do {
+                container = try ModelContainer(
+                    for: PersistedPayload.self,
+                    configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+                )
+            } catch {
+                preconditionFailure("Weektable could not create a recovery data store.")
+            }
         }
+        context = ModelContext(container)
     }
 
     func save<Value: Encodable>(_ value: Value, key: String) throws {
@@ -63,9 +70,38 @@ enum PersistenceKey {
     static let cachedPlan = "cached-plan"
     static let generationJob = "generation-job"
     static let groceryState = "grocery-state"
+    static let hasCompletedWelcome = "has-completed-welcome"
+    static let completedPlanCount = "completed-plan-count"
+    static let completedSwapCount = "completed-swap-count"
+    static let entitlementCache = "entitlement-cache"
 }
 
 struct GroceryState: Codable, Equatable {
     var checkedItemIDs: Set<String> = []
     var ownedItemIDs: Set<String> = []
+
+    enum CodingKeys: String, CodingKey {
+        case checkedItemIDs = "checkedItemIds"
+        case ownedItemIDs = "ownedItemIds"
+    }
+
+    private enum LegacyCodingKeys: String, CodingKey {
+        case checkedItemIDs, ownedItemIDs
+    }
+
+    init(checkedItemIDs: Set<String> = [], ownedItemIDs: Set<String> = []) {
+        self.checkedItemIDs = checkedItemIDs
+        self.ownedItemIDs = ownedItemIDs
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let legacy = try decoder.container(keyedBy: LegacyCodingKeys.self)
+        checkedItemIDs = try container.decodeIfPresent(Set<String>.self, forKey: .checkedItemIDs)
+            ?? legacy.decodeIfPresent(Set<String>.self, forKey: .checkedItemIDs)
+            ?? []
+        ownedItemIDs = try container.decodeIfPresent(Set<String>.self, forKey: .ownedItemIDs)
+            ?? legacy.decodeIfPresent(Set<String>.self, forKey: .ownedItemIDs)
+            ?? []
+    }
 }

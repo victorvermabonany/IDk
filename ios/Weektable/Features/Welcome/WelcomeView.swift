@@ -5,30 +5,50 @@ struct WelcomeView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            WeektableFoodImage(alignment: .center)
-                .ignoresSafeArea()
-                .overlay {
-                    LinearGradient(
-                        colors: [.black.opacity(0.08), .black.opacity(0.24), .black.opacity(0.88)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
+        GeometryReader { proxy in
+            ZStack {
+                WeektableFoodImage(alignment: .center)
+                    .frame(width: proxy.size.width, height: proxy.size.height)
                     .ignoresSafeArea()
-                }
+                    .overlay {
+                        LinearGradient(
+                            colors: [.black.opacity(0.04), .black.opacity(0.2), .black.opacity(0.94)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .ignoresSafeArea()
+                    }
 
-            VStack(alignment: .leading, spacing: 18) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Spacer(minLength: dynamicTypeSize.isAccessibilitySize ? 120 : max(150, proxy.size.height * 0.32))
+                        welcomeContent
+                    }
+                    .frame(minHeight: proxy.size.height, alignment: .bottom)
+                    .padding(.horizontal, WeektableTheme.pagePadding)
+                    .padding(.bottom, 16)
+                }
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .scrollBounceBehavior(.basedOnSize)
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+            .clipped()
+        }
+    }
+
+    private var welcomeContent: some View {
+        VStack(alignment: .leading, spacing: 16) {
                 Label("WEEKTABLE", systemImage: "fork.knife")
                     .font(.caption.weight(.black))
                     .tracking(1.2)
                     .foregroundStyle(.white.opacity(0.9))
 
-                Text("Dinner, handled.")
-                    .font(dynamicTypeSize.isAccessibilitySize ? .largeTitle.bold() : .system(size: 44, weight: .bold, design: .rounded))
+                Text("Your week of food, figured out.")
+                    .font(dynamicTypeSize.isAccessibilitySize ? .title.bold() : .system(size: 38, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
                     .accessibilityAddTraits(.isHeader)
 
-                Text("A full week of meals and one grocery list, built around your budget and the way you eat.")
+                Text("Tell us where you shop, what you want to spend, and how you like to eat. We’ll handle the week.")
                     .font(.title3)
                     .foregroundStyle(.white.opacity(0.88))
                     .fixedSize(horizontal: false, vertical: true)
@@ -40,12 +60,9 @@ struct WelcomeView: View {
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(.white.opacity(0.82))
 
-                Button("Plan my week") { appModel.showPlanner() }
+                Button("Plan my first week") { appModel.showPlanner() }
                     .buttonStyle(PrimaryButtonStyle())
                     .accessibilityHint("Starts the four-step dinner planner")
-            }
-            .padding(.horizontal, WeektableTheme.pagePadding)
-            .padding(.bottom, 18)
         }
     }
 }
@@ -62,4 +79,3 @@ struct WeektableFoodImage: View {
             .accessibilityHidden(true)
     }
 }
-
