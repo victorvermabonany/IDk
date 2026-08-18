@@ -7,6 +7,16 @@ enum RootFlow: Equatable {
     case planner
     case generation
     case main
+
+    static func restored(
+        hasCompletedWelcome: Bool,
+        hasCachedPlan: Bool,
+        hasPendingGeneration: Bool
+    ) -> RootFlow {
+        if hasPendingGeneration { return .generation }
+        if hasCachedPlan { return .main }
+        return hasCompletedWelcome ? .planner : .welcome
+    }
 }
 
 enum AppTab: Hashable {
@@ -336,14 +346,15 @@ final class AppModel {
             if savedGroceryState == nil {
                 groceryState.ownedItemIDs = Set(cached.basket.filter(\.pantryStatus).map(\.id))
             }
-            rootFlow = .main
         }
         if let job = try? persistence.load(GenerationJob.self, key: PersistenceKey.generationJob) {
             pendingGenerationJob = job
-            rootFlow = .generation
-        } else if plan == nil, completedWelcome {
-            rootFlow = .planner
         }
+        rootFlow = .restored(
+            hasCompletedWelcome: completedWelcome,
+            hasCachedPlan: plan != nil,
+            hasPendingGeneration: pendingGenerationJob != nil
+        )
     }
 
     private func persistGroceryState() {

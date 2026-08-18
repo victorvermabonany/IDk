@@ -63,6 +63,13 @@ final class PersistenceController {
         }
         try context.save()
     }
+
+    func removeAll() throws {
+        for item in try context.fetch(FetchDescriptor<PersistedPayload>()) {
+            context.delete(item)
+        }
+        try context.save()
+    }
 }
 
 enum PersistenceKey {

@@ -8,9 +8,7 @@ struct SettingsView: View {
         List {
             Section {
                 HStack(spacing: 14) {
-                    Image(systemName: "person.crop.circle.fill")
-                        .font(.system(size: 44))
-                        .foregroundStyle(WeektableTheme.brand)
+                    CoveBrandMark()
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Your Cove").font(.headline)
                         Text("Plans and shopping progress are saved on this iPhone")
@@ -20,6 +18,7 @@ struct SettingsView: View {
                 }
                 .padding(.vertical, 6)
             }
+            .listRowBackground(WeektableTheme.raised)
 
             if FeatureFlags.subscriptionsEnabled {
                 Section("Cove Pro") {
@@ -65,6 +64,8 @@ struct SettingsView: View {
                 Text("This internal beta is free. Generated plans use available recipe and catalog metadata; always verify package labels and cross-contact warnings.")
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(WeektableTheme.canvas)
         .navigationTitle("Settings")
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
@@ -116,6 +117,8 @@ private struct SubscriptionSettingsView: View {
                 if let statusMessage { Text(statusMessage) }
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(WeektableTheme.canvas)
         .navigationTitle("Subscription")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showingPaywall) {
@@ -146,6 +149,7 @@ private struct SettingsTextView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(WeektableTheme.pagePadding)
         }
+        .background(WeektableTheme.canvas)
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
     }

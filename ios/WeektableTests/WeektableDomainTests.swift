@@ -2,6 +2,50 @@ import XCTest
 @testable import Weektable
 
 final class WeektableDomainTests: XCTestCase {
+    func testFirstRunRoutingStates() {
+        XCTAssertEqual(
+            RootFlow.restored(hasCompletedWelcome: false, hasCachedPlan: false, hasPendingGeneration: false),
+            .welcome
+        )
+        XCTAssertEqual(
+            RootFlow.restored(hasCompletedWelcome: true, hasCachedPlan: false, hasPendingGeneration: false),
+            .planner
+        )
+        XCTAssertEqual(
+            RootFlow.restored(hasCompletedWelcome: false, hasCachedPlan: true, hasPendingGeneration: false),
+            .main
+        )
+        XCTAssertEqual(
+            RootFlow.restored(hasCompletedWelcome: true, hasCachedPlan: true, hasPendingGeneration: true),
+            .generation
+        )
+    }
+
+    func testWelcomeCompletionPersistsAcrossAppModelInstances() async {
+        await MainActor.run {
+            let persistence = PersistenceController(inMemory: true)
+            let firstLaunch = AppModel(repository: DemoPlanRepository(), persistence: persistence, subscriptions: SubscriptionService())
+            XCTAssertEqual(firstLaunch.rootFlow, .welcome)
+
+            firstLaunch.showPlanner()
+            XCTAssertEqual(firstLaunch.rootFlow, .planner)
+
+            let relaunch = AppModel(repository: DemoPlanRepository(), persistence: persistence, subscriptions: SubscriptionService())
+            XCTAssertEqual(relaunch.rootFlow, .planner)
+        }
+    }
+
+    func testCachedPlanSkipsWelcome() async throws {
+        try await MainActor.run {
+            let persistence = PersistenceController(inMemory: true)
+            try persistence.save(DemoData.plan, key: PersistenceKey.cachedPlan)
+
+            let relaunch = AppModel(repository: DemoPlanRepository(), persistence: persistence, subscriptions: SubscriptionService())
+            XCTAssertEqual(relaunch.rootFlow, .main)
+            XCTAssertEqual(relaunch.plan?.id, DemoData.plan.id)
+        }
+    }
+
     func testDemoBasketMatchesReferenceTotal() {
         XCTAssertEqual(DemoData.plan.estimatedTotalCents, 8_537)
         XCTAssertEqual(DemoData.plan.remainingCents, 1_463)

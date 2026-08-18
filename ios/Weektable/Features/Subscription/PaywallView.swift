@@ -15,20 +15,31 @@ struct PaywallView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 22) {
                     hero
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Your week, every week.")
+                            .font(.coveTitle)
+                            .accessibilityAddTraits(.isHeader)
+                        Text(feature.message)
+                            .font(.body)
+                            .foregroundStyle(WeektableTheme.secondaryInk)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
                     benefits
                     products
 
                     if let statusMessage {
                         Label(statusMessage, systemImage: "info.circle.fill")
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(WeektableTheme.secondaryInk)
                             .fixedSize(horizontal: false, vertical: true)
                             .accessibilityElement(children: .combine)
                     }
 
-                    Button(isPurchasing ? "Contacting the App Store…" : "Continue") {
+                    Button(isPurchasing ? "Contacting the App Store…" : "Continue with Cove Pro") {
                         Task { await purchaseSelectedProduct() }
                     }
                     .buttonStyle(PrimaryButtonStyle())
@@ -38,13 +49,15 @@ struct PaywallView: View {
                         Task { await restore() }
                     }
                     .font(.headline)
+                    .foregroundStyle(WeektableTheme.brandDeep)
                     .frame(maxWidth: .infinity, minHeight: 48)
                     .disabled(isPurchasing || subscriptions.isRestoring)
 
                     Text("Payment is charged to your Apple ID. Subscriptions renew automatically unless cancelled in App Store settings before the current period ends.")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(WeektableTheme.secondaryInk)
                         .fixedSize(horizontal: false, vertical: true)
+                        .padding(.bottom, 22)
                 }
                 .padding(WeektableTheme.pagePadding)
             }
@@ -71,28 +84,32 @@ struct PaywallView: View {
             Image("weektable-dinners")
                 .resizable()
                 .scaledToFill()
-                .frame(height: 210)
+                .frame(height: 230)
                 .clipped()
                 .accessibilityHidden(true)
-            LinearGradient(colors: [.clear, .black.opacity(0.88)], startPoint: .top, endPoint: .bottom)
-            VStack(alignment: .leading, spacing: 7) {
-                Text(feature.title).font(.title.bold())
-                Text(feature.message).font(.subheadline).foregroundStyle(.white.opacity(0.88))
+            LinearGradient(colors: [.clear, WeektableTheme.ink.opacity(0.78)], startPoint: .center, endPoint: .bottom)
+            VStack(alignment: .leading, spacing: 8) {
+                CoveStatusPill(text: "COVE PRO", symbol: "sparkles", color: .white)
+                Text(feature.title)
+                    .font(.title2.bold())
+                    .foregroundStyle(.white)
             }
-            .foregroundStyle(.white)
             .padding(18)
         }
-        .clipShape(RoundedRectangle(cornerRadius: WeektableTheme.cardRadius, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: WeektableTheme.heroRadius, style: .continuous))
+        .shadow(color: WeektableTheme.ink.opacity(0.12), radius: 18, y: 9)
     }
 
     private var benefits: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            BenefitRow(symbol: "calendar.badge.plus", text: "Unlimited weekly plans")
-            BenefitRow(symbol: "arrow.triangle.2.circlepath", text: "Unlimited swaps with basket repricing")
-            BenefitRow(symbol: "slider.horizontal.3", text: "Saved preferences and advanced replanning")
+        VStack(alignment: .leading, spacing: 0) {
+            BenefitRow(symbol: "calendar.badge.plus", text: "Unlimited weekly plans", color: WeektableTheme.terracotta)
+            Divider().padding(.leading, 48)
+            BenefitRow(symbol: "arrow.triangle.2.circlepath", text: "Unlimited swaps with basket repricing", color: WeektableTheme.sky)
+            Divider().padding(.leading, 48)
+            BenefitRow(symbol: "slider.horizontal.3", text: "Saved preferences and advanced replanning", color: WeektableTheme.sage)
         }
-        .padding(18)
-        .background(WeektableTheme.raised, in: RoundedRectangle(cornerRadius: WeektableTheme.cardRadius))
+        .padding(.horizontal, 16)
+        .coveCard()
     }
 
     @ViewBuilder
@@ -165,11 +182,20 @@ struct PaywallView: View {
 private struct BenefitRow: View {
     let symbol: String
     let text: String
+    let color: Color
+
     var body: some View {
-        Label(text, systemImage: symbol)
-            .font(.body.weight(.medium))
-            .symbolRenderingMode(.hierarchical)
-            .foregroundStyle(.primary)
+        HStack(spacing: 13) {
+            Image(systemName: symbol)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(color)
+                .frame(width: 34, height: 34)
+                .background(color.opacity(0.12), in: Circle())
+            Text(text)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(WeektableTheme.ink)
+        }
+        .frame(minHeight: 58)
     }
 }
 
@@ -183,13 +209,13 @@ private struct ProductChoiceRow: View {
             HStack(spacing: 14) {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.title3)
-                    .foregroundStyle(isSelected ? WeektableTheme.brand : .secondary)
-                VStack(alignment: .leading, spacing: 3) {
+                    .foregroundStyle(isSelected ? WeektableTheme.brand : WeektableTheme.secondaryInk)
+                VStack(alignment: .leading, spacing: 4) {
                     Text(product.id == SubscriptionProductID.annual ? "Annual" : "Monthly")
                         .font(.headline)
                     Text(product.description)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(WeektableTheme.secondaryInk)
                         .lineLimit(2)
                 }
                 Spacer()
@@ -198,10 +224,10 @@ private struct ProductChoiceRow: View {
                     .monospacedDigit()
             }
             .padding(16)
-            .background(WeektableTheme.raised)
+            .background(isSelected ? WeektableTheme.selected : WeektableTheme.raised)
             .overlay {
                 RoundedRectangle(cornerRadius: WeektableTheme.controlRadius)
-                    .stroke(isSelected ? WeektableTheme.brand : WeektableTheme.divider, lineWidth: isSelected ? 2 : 1)
+                    .stroke(isSelected ? WeektableTheme.brand : WeektableTheme.divider, lineWidth: isSelected ? 1.5 : 0.75)
             }
             .clipShape(RoundedRectangle(cornerRadius: WeektableTheme.controlRadius))
         }

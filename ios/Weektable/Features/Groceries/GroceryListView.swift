@@ -5,11 +5,9 @@ struct GroceryListView: View {
     @Bindable var appModel: AppModel
 
     private var plan: MealPlan? { appModel.plan }
-
     private var neededItems: [BasketItem] {
         plan?.basket.filter { !isOwned($0) } ?? []
     }
-
     private var itemsLeft: Int {
         neededItems.filter { !appModel.groceryState.checkedItemIDs.contains($0.id) }.count
     }
@@ -30,7 +28,7 @@ struct GroceryListView: View {
                         .listRowSeparator(.hidden)
 
                         PriceSourceNotice(plan: plan)
-                            .listRowInsets(EdgeInsets(top: 0, leading: WeektableTheme.pagePadding, bottom: 8, trailing: WeektableTheme.pagePadding))
+                            .listRowInsets(EdgeInsets(top: 0, leading: WeektableTheme.pagePadding, bottom: 10, trailing: WeektableTheme.pagePadding))
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
                     }
@@ -48,8 +46,11 @@ struct GroceryListView: View {
                                         onCheck: { appModel.toggleChecked(item.id) },
                                         onOwned: { appModel.toggleOwned(item.id) }
                                     )
+                                    .listRowInsets(EdgeInsets(top: 4, leading: WeektableTheme.pagePadding, bottom: 4, trailing: WeektableTheme.pagePadding))
+                                    .listRowBackground(Color.clear)
+                                    .listRowSeparator(.hidden)
                                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                        Button(isOwned(item) ? "Add to basket" : "I have this") {
+                                        Button(isOwned(item) ? "Add to basket" : "Already have") {
                                             appModel.toggleOwned(item.id)
                                         }
                                         .tint(WeektableTheme.success)
@@ -58,9 +59,16 @@ struct GroceryListView: View {
                             } header: {
                                 HStack {
                                     Text(department.rawValue)
+                                        .font(.subheadline.weight(.bold))
+                                        .foregroundStyle(WeektableTheme.ink)
                                     Spacer()
-                                    Text("\(items.count)").monospacedDigit()
+                                    Text("\(items.count)")
+                                        .font(.caption.weight(.bold))
+                                        .foregroundStyle(WeektableTheme.secondaryInk)
+                                        .monospacedDigit()
                                 }
+                                .textCase(nil)
+                                .padding(.horizontal, 4)
                             }
                         }
                     }
@@ -71,11 +79,11 @@ struct GroceryListView: View {
                             systemImage: itemsLeft == 0 ? "checkmark.circle.fill" : "cart"
                         )
                         .font(.headline)
-                        .foregroundStyle(itemsLeft == 0 ? WeektableTheme.success : .primary)
-                        .padding(.vertical, 8)
+                        .foregroundStyle(itemsLeft == 0 ? WeektableTheme.success : WeektableTheme.ink)
+                        .padding(.vertical, 12)
                         .accessibilityElement(children: .combine)
                     } footer: {
-                        Text("Checked items stay in place so the list never jumps while you shop.")
+                        Text("Checked items stay in place, so nothing jumps while you shop.")
                     }
                 }
                 .listStyle(.plain)
@@ -130,25 +138,30 @@ private struct GrocerySummaryCard: View {
     let dinnerCount: Int
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 17) {
             HStack {
-                Label("At the store", systemImage: "location.fill")
-                    .font(.caption.weight(.bold))
+                Label("Shopping list", systemImage: "basket.fill")
+                    .font(.caption.weight(.black))
                     .textCase(.uppercase)
+                    .tracking(0.8)
                 Spacer()
-                Text("\(itemsLeft) left").font(.subheadline.weight(.semibold))
+                Text("\(itemsLeft) left")
+                    .font(.subheadline.weight(.bold))
             }
 
             HStack(alignment: .lastTextBaseline, spacing: 5) {
                 Text(totalCents.currency)
-                    .font(.system(.largeTitle, design: .rounded, weight: .bold))
+                    .font(.system(size: 34, weight: .bold, design: .rounded))
                     .monospacedDigit()
-                Text("/ \(budgetCents.currency)")
-                    .font(.headline).foregroundStyle(.white.opacity(0.7))
+                    .contentTransition(.numericText())
+                Text("of \(budgetCents.currency)")
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.72))
             }
 
             ProgressView(value: Double(totalCents), total: Double(max(budgetCents, 1)))
                 .tint(.white)
+                .scaleEffect(x: 1, y: 1.3)
                 .accessibilityLabel("Grocery budget used")
                 .accessibilityValue("\(totalCents.currency) of \(budgetCents.currency)")
 
@@ -161,7 +174,8 @@ private struct GrocerySummaryCard: View {
         }
         .foregroundStyle(.white)
         .padding(20)
-        .background(WeektableTheme.brandDeep, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .background(WeektableTheme.brandDeep, in: RoundedRectangle(cornerRadius: WeektableTheme.heroRadius, style: .continuous))
+        .shadow(color: WeektableTheme.brandDeep.opacity(0.18), radius: 16, y: 8)
         .accessibilityElement(children: .combine)
     }
 }
@@ -177,30 +191,33 @@ private struct GroceryRow: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Button(action: onCheck) {
-                Image(systemName: isChecked ? "checkmark.circle.fill" : "circle")
+        HStack(alignment: .center, spacing: 11) {
+            Button(action: isOwned ? onOwned : onCheck) {
+                Image(systemName: statusSymbol)
                     .font(.title2)
-                    .foregroundStyle(isChecked ? WeektableTheme.success : WeektableTheme.secondaryInk)
+                    .foregroundStyle(statusColor)
                     .frame(width: 44, height: 44)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("\(isChecked ? "Uncheck" : "Check") \(item.productName)")
+            .accessibilityLabel(statusActionLabel)
 
             Button {
-                withAnimation(reduceMotion ? nil : .snappy) { expanded.toggle() }
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) { expanded.toggle() }
             } label: {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 5) {
                     Text(item.productName)
                         .font(.body.weight(.semibold))
                         .strikethrough(isChecked)
-                        .foregroundStyle(isChecked ? .secondary : .primary)
+                        .foregroundStyle(isChecked ? WeektableTheme.secondaryInk : WeektableTheme.ink)
                     Text("\(item.packageCount) × \(item.packageDisplay) · need \(item.requiredDisplay)")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption)
+                        .foregroundStyle(WeektableTheme.secondaryInk)
                     if expanded, !mealTitles.isEmpty {
                         Text("Used in \(mealTitles.joined(separator: ", "))")
-                            .font(.caption).foregroundStyle(.secondary)
+                            .font(.caption)
+                            .foregroundStyle(WeektableTheme.secondaryInk)
                             .fixedSize(horizontal: false, vertical: true)
+                            .transition(.opacity)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -210,19 +227,64 @@ private struct GroceryRow: View {
             .accessibilityHint("Shows the dinners that use this item")
 
             Menu {
-                Button(isOwned ? "Add to basket" : "I have this", action: onOwned)
+                Button(isOwned ? "Add to basket" : "Already have", action: onOwned)
             } label: {
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text(isOwned ? "Have it" : item.totalPriceCents.currency)
-                        .font(.subheadline.weight(.semibold)).monospacedDigit()
+                VStack(alignment: .trailing, spacing: 5) {
+                    if isOwned {
+                        Text("Have it")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(WeektableTheme.success)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .background(WeektableTheme.success.opacity(0.12), in: Capsule())
+                    } else {
+                        Text(item.totalPriceCents.currency)
+                            .font(.subheadline.weight(.bold))
+                            .monospacedDigit()
+                            .foregroundStyle(WeektableTheme.ink)
+                    }
                     Image(systemName: "ellipsis")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption)
+                        .foregroundStyle(WeektableTheme.secondaryInk)
                 }
                 .frame(minWidth: 62, minHeight: 44, alignment: .trailing)
             }
             .accessibilityLabel("\(isOwned ? "Already have" : item.totalPriceCents.currency), options for \(item.productName)")
         }
-        .padding(.vertical, 4)
-        .opacity(isChecked ? 0.62 : 1)
+        .padding(.vertical, 9)
+        .padding(.horizontal, 10)
+        .background(rowFill, in: RoundedRectangle(cornerRadius: WeektableTheme.controlRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: WeektableTheme.controlRadius, style: .continuous)
+                .stroke(rowStroke, lineWidth: 0.75)
+        }
+        .opacity(isChecked ? 0.64 : 1)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: isChecked)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: isOwned)
+    }
+
+    private var statusSymbol: String {
+        if isOwned { return "checkmark.seal.fill" }
+        return isChecked ? "checkmark.circle.fill" : "circle"
+    }
+
+    private var statusColor: Color {
+        if isOwned { return WeektableTheme.success }
+        return isChecked ? WeektableTheme.brand : WeektableTheme.secondaryInk
+    }
+
+    private var statusActionLabel: String {
+        if isOwned { return "Add \(item.productName) back to basket" }
+        return "\(isChecked ? "Uncheck" : "Check") \(item.productName)"
+    }
+
+    private var rowFill: Color {
+        if isOwned { return WeektableTheme.sage.opacity(0.12) }
+        if isChecked { return WeektableTheme.surface.opacity(0.64) }
+        return WeektableTheme.raised
+    }
+
+    private var rowStroke: Color {
+        isOwned ? WeektableTheme.success.opacity(0.25) : WeektableTheme.divider
     }
 }

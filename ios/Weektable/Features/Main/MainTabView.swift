@@ -28,6 +28,8 @@ struct MainTabView: View {
             .tabItem { Label("Groceries", systemImage: "cart") }
             .tag(AppTab.groceries)
         }
+        .toolbarBackground(WeektableTheme.raised, for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
         .sheet(item: $appModel.swapMeal) { meal in
             MealSwapSheet(appModel: appModel, meal: meal)
                 .presentationDetents([.medium, .large])

@@ -39,8 +39,9 @@ struct PlannerFlowView: View {
                         currentStep
                             .id(step)
                             .padding(.horizontal, WeektableTheme.pagePadding)
-                            .padding(.top, 21)
-                            .padding(.bottom, 140)
+                            .padding(.top, 22)
+                            .padding(.bottom, 132)
+                            .transition(.opacity.combined(with: .move(edge: .trailing)))
                     }
                     .scrollDismissesKeyboard(.interactively)
                     .onChange(of: step) { _, _ in
@@ -49,16 +50,21 @@ struct PlannerFlowView: View {
                 }
             }
             .background(WeektableTheme.canvas)
-            .navigationTitle(step.title)
+            .navigationTitle("Plan your week")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close", systemImage: "xmark") { appModel.rootFlow = appModel.plan == nil ? .welcome : .main }
-                        .labelStyle(.iconOnly)
+                if appModel.plan != nil {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Close", systemImage: "xmark") { appModel.rootFlow = .main }
+                            .labelStyle(.iconOnly)
+                            .accessibilityHint("Returns to your current week")
+                    }
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
-                    Button("Done") { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
+                    Button("Done") {
+                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                    }
                 }
             }
             .safeAreaInset(edge: .bottom) { bottomActions }
@@ -66,20 +72,23 @@ struct PlannerFlowView: View {
     }
 
     private var progressHeader: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 9) {
             HStack {
-                Text("Step \(step.rawValue + 1) of \(PlannerStep.allCases.count)")
+                Text(step.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(WeektableTheme.ink)
+                Spacer()
+                Text("\(step.rawValue + 1) of \(PlannerStep.allCases.count)")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(WeektableTheme.secondaryInk)
+                    .monospacedDigit()
             }
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(.secondary)
-            ProgressView(value: Double(step.rawValue + 1), total: Double(PlannerStep.allCases.count))
-                .tint(WeektableTheme.brand)
-                .accessibilityLabel("Planner progress")
-                .accessibilityValue("Step \(step.rawValue + 1) of \(PlannerStep.allCases.count)")
+            CovePlannerProgress(current: step.rawValue, total: PlannerStep.allCases.count)
         }
         .padding(.horizontal, WeektableTheme.pagePadding)
-        .padding(.vertical, 12)
-        .background(.bar)
+        .padding(.top, 8)
+        .padding(.bottom, 13)
+        .background(WeektableTheme.canvas)
     }
 
     @ViewBuilder
@@ -93,8 +102,11 @@ struct PlannerFlowView: View {
 
         if let validationMessage {
             Label(validationMessage, systemImage: "exclamationmark.circle.fill")
-                .font(.subheadline)
-                .foregroundStyle(.red)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(WeektableTheme.error)
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(WeektableTheme.error.opacity(0.09), in: RoundedRectangle(cornerRadius: WeektableTheme.controlRadius))
                 .padding(.top, 16)
                 .accessibilityLabel("Error: \(validationMessage)")
         }
@@ -103,9 +115,12 @@ struct PlannerFlowView: View {
     private var bottomActions: some View {
         HStack(spacing: 12) {
             if step != .store {
-                Button("Back") { moveBack() }
-                    .font(.headline)
-                    .frame(minWidth: 82, minHeight: 54)
+                Button { moveBack() } label: {
+                    Label("Back", systemImage: "chevron.left")
+                        .labelStyle(.iconOnly)
+                }
+                .buttonStyle(SecondaryButtonStyle())
+                .accessibilityLabel("Back")
             }
             Button(step == .pantry ? "Build my week" : "Continue") { advance() }
                 .buttonStyle(PrimaryButtonStyle())
@@ -140,14 +155,14 @@ struct PlannerFlowView: View {
         if step == .pantry {
             appModel.beginGeneration()
         } else if let next = PlannerStep(rawValue: step.rawValue + 1) {
-            withAnimation(reduceMotion ? nil : .snappy) { step = next }
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.26)) { step = next }
             Haptics.selection()
         }
     }
 
     private func moveBack() {
         guard let previous = PlannerStep(rawValue: step.rawValue - 1) else { return }
-        withAnimation(reduceMotion ? nil : .snappy) { step = previous }
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.26)) { step = previous }
         Haptics.selection()
     }
 }
@@ -158,18 +173,19 @@ private struct PlannerStepHeader: View {
     let description: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 9) {
             SectionLabel(text: eyebrow)
             Text(title)
-                .font(.title2.bold())
+                .font(.coveTitle)
+                .foregroundStyle(WeektableTheme.ink)
                 .accessibilityAddTraits(.isHeader)
             Text(description)
                 .font(.body)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(WeektableTheme.secondaryInk)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.bottom, 22)
+        .padding(.bottom, 16)
     }
 }
 
@@ -178,83 +194,107 @@ private struct StoreBudgetStep: View {
     @Binding var draft: PlannerRequest
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 20) {
             PlannerStepHeader(
-                eyebrow: "Start with the practical part",
-                title: "Where are you shopping?",
-                description: "We match complete packages at your selected store and keep the basket inside your dinner budget."
+                eyebrow: "First, the practical part",
+                title: "Where do you shop?",
+                description: "Cove uses your store and budget to plan complete packages—not imaginary ingredient prices."
             )
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("ZIP code").font(.headline)
+            VStack(alignment: .leading, spacing: 14) {
+                SectionLabel(text: "Your store")
                 HStack(spacing: 10) {
-                    TextField("ZIP code", text: $draft.zipCode)
-                        .keyboardType(.numberPad)
-                        .textContentType(.postalCode)
-                        .accessibilityHint("Five digits")
-                    Button("Find stores") {
+                    Label {
+                        TextField("ZIP code", text: $draft.zipCode)
+                            .keyboardType(.numberPad)
+                            .textContentType(.postalCode)
+                            .accessibilityHint("Five digits")
+                    } icon: {
+                        Image(systemName: "mappin.and.ellipse")
+                            .foregroundStyle(WeektableTheme.brand)
+                    }
+                    .padding(.horizontal, 14)
+                    .frame(minHeight: 54)
+                    .background(WeektableTheme.surface, in: RoundedRectangle(cornerRadius: WeektableTheme.controlRadius))
+
+                    Button {
                         Task {
                             await appModel.findStores(postalCode: draft.zipCode)
                             if let first = appModel.availableStores.first { draft.storeID = first.id }
                         }
+                    } label: {
+                        Image(systemName: "arrow.right")
+                            .font(.headline.bold())
+                            .frame(width: 54, height: 54)
                     }
-                    .fontWeight(.semibold)
+                    .foregroundStyle(.white)
+                    .background(WeektableTheme.brandDeep, in: RoundedRectangle(cornerRadius: WeektableTheme.controlRadius))
                     .disabled(draft.zipCode.count != 5 || appModel.storeSearchState == .loading)
+                    .accessibilityLabel("Find stores")
                 }
-                .padding(14)
-                .background(WeektableTheme.raised, in: RoundedRectangle(cornerRadius: WeektableTheme.controlRadius))
-            }
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Weekly dinner budget").font(.headline)
+                storeResult
+            }
+            .padding(17)
+            .coveCard()
+
+            VStack(alignment: .leading, spacing: 13) {
+                SectionLabel(text: "Dinner budget")
+                Text("What do you want to spend?")
+                    .font(.coveCardTitle)
                 CurrencyBudgetField(budgetCents: $draft.budgetCents)
             }
+            .padding(17)
+            .coveCard()
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Store").font(.headline)
-                if appModel.storeSearchState == .loading {
-                    HStack(spacing: 12) {
-                        ProgressView()
-                        Text("Finding supported stores…")
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
-                } else if appModel.storeSearchState == .unsupported {
-                    Label("No supported stores were found for this ZIP code.", systemImage: "mappin.slash")
-                        .foregroundStyle(.secondary)
-                        .frame(minHeight: 56)
-                } else if appModel.storeSearchState == .failed {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Label(appModel.storeErrorMessage ?? "Stores could not be loaded. Your ZIP code is still saved.", systemImage: "wifi.exclamationmark")
-                            .fixedSize(horizontal: false, vertical: true)
-                        Button("Try again") {
-                            Task {
-                                await appModel.findStores(postalCode: draft.zipCode)
-                                if let first = appModel.availableStores.first { draft.storeID = first.id }
-                            }
-                        }
-                            .fontWeight(.semibold)
-                    }
-                } else {
-                    Picker("Store", selection: $draft.storeID) {
-                        ForEach(appModel.availableStores, id: \.id) { store in
-                            Text("\(store.name) · \(store.address)").tag(store.id)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(8)
-                    .background(WeektableTheme.raised, in: RoundedRectangle(cornerRadius: WeektableTheme.controlRadius))
-                }
-                Label("Estimated complete-package prices for planning. Check current shelf prices and labels.", systemImage: "info.circle")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
+            Label("Cove plans with estimated complete-package prices. Check current shelf prices and labels.", systemImage: "info.circle")
+                .font(.footnote)
+                .foregroundStyle(WeektableTheme.secondaryInk)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .task {
             if appModel.availableStores.isEmpty {
                 await appModel.findStores(postalCode: draft.zipCode)
                 if let first = appModel.availableStores.first { draft.storeID = first.id }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var storeResult: some View {
+        if appModel.storeSearchState == .loading {
+            HStack(spacing: 12) {
+                ProgressView()
+                Text("Finding supported stores…")
+            }
+            .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+        } else if appModel.storeSearchState == .unsupported {
+            Label("No supported stores were found for this ZIP code.", systemImage: "mappin.slash")
+                .foregroundStyle(WeektableTheme.secondaryInk)
+                .frame(minHeight: 56)
+        } else if appModel.storeSearchState == .failed {
+            VStack(alignment: .leading, spacing: 8) {
+                Label(appModel.storeErrorMessage ?? "Stores could not be loaded. Your ZIP code is still saved.", systemImage: "wifi.exclamationmark")
+                    .fixedSize(horizontal: false, vertical: true)
+                Button("Try again") {
+                    Task {
+                        await appModel.findStores(postalCode: draft.zipCode)
+                        if let first = appModel.availableStores.first { draft.storeID = first.id }
+                    }
+                }
+                .fontWeight(.semibold)
+            }
+        } else if !appModel.availableStores.isEmpty {
+            Picker("Store", selection: $draft.storeID) {
+                ForEach(appModel.availableStores, id: \.id) { store in
+                    Text("\(store.name) · \(store.address)").tag(store.id)
+                }
+            }
+            .pickerStyle(.menu)
+            .tint(WeektableTheme.brandDeep)
+            .frame(maxWidth: .infinity, minHeight: 54, alignment: .leading)
+            .padding(.horizontal, 12)
+            .background(WeektableTheme.surface, in: RoundedRectangle(cornerRadius: WeektableTheme.controlRadius))
         }
     }
 }
@@ -264,30 +304,33 @@ private struct CurrencyBudgetField: View {
     @State private var text = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("$").foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 4) {
+                Text("$")
+                    .foregroundStyle(WeektableTheme.secondaryInk)
                 TextField("100.00", text: $text)
                     .keyboardType(.decimalPad)
                     .accessibilityLabel("Weekly dinner budget")
                     .onChange(of: text) { _, value in updateBudget(from: value) }
             }
-            .font(.title3.weight(.semibold))
-            .padding(14)
-            .background(WeektableTheme.raised, in: RoundedRectangle(cornerRadius: WeektableTheme.controlRadius))
+            .font(.system(size: 30, weight: .bold, design: .rounded))
+            .padding(.horizontal, 15)
+            .frame(minHeight: 64)
+            .background(WeektableTheme.surface, in: RoundedRectangle(cornerRadius: WeektableTheme.controlRadius))
 
             if !text.isEmpty, parsedCents(text) == nil {
-                Text("Enter an amount from $20 to $500 with up to two decimal places.")
+                Text("Enter $20–$500 with up to two decimal places.")
                     .font(.footnote)
-                    .foregroundStyle(.red)
-                    .accessibilityLabel("Budget error: Enter an amount from 20 to 500 dollars")
+                    .foregroundStyle(WeektableTheme.error)
             } else {
-                Text("Supported beta budget: $20–$500.")
+                Text("This is your budget for all dinners, not your entire grocery trip.")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(WeektableTheme.secondaryInk)
             }
         }
-        .task { if text.isEmpty { text = String(format: "%.2f", Double(budgetCents) / 100) } }
+        .task {
+            if text.isEmpty { text = String(format: "%.2f", Double(budgetCents) / 100) }
+        }
     }
 
     private func updateBudget(from value: String) {
@@ -296,7 +339,9 @@ private struct CurrencyBudgetField: View {
     }
 
     private func parsedCents(_ value: String) -> Int? {
-        let cleaned = value.replacingOccurrences(of: "$", with: "").replacingOccurrences(of: ",", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleaned = value.replacingOccurrences(of: "$", with: "")
+            .replacingOccurrences(of: ",", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         guard cleaned.range(of: #"^\d{1,3}(?:\.\d{0,2})?$"#, options: .regularExpression) != nil,
               let amount = Decimal(string: cleaned, locale: Locale(identifier: "en_US_POSIX")) else { return nil }
         let cents = NSDecimalNumber(decimal: amount * 100).intValue
@@ -308,46 +353,58 @@ private struct HouseholdStep: View {
     @Binding var draft: PlannerRequest
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: 22) {
             PlannerStepHeader(
                 eyebrow: "Set the table",
-                title: "How much dinner do you need?",
-                description: "We scale every recipe and package calculation for your household."
+                title: "Who are we cooking for?",
+                description: "Cove scales every recipe and package calculation for the people eating."
             )
 
-            VStack(alignment: .leading, spacing: 10) {
-                SectionLabel(text: "People eating")
-                Stepper(value: $draft.householdSize, in: 1...8) {
-                    HStack {
-                        Label("Household", systemImage: "person.2.fill")
-                        Spacer()
-                        Text("\(draft.householdSize)").font(.title2.bold()).monospacedDigit()
+            CoveCounter(
+                title: "Household",
+                symbol: "person.2.fill",
+                value: $draft.householdSize,
+                range: 1...8,
+                suffix: draft.householdSize == 1 ? "person" : "people"
+            )
+
+            VStack(alignment: .leading, spacing: 13) {
+                SectionLabel(text: "Dinners this week")
+                Text("How many nights should Cove cover?")
+                    .font(.coveCardTitle)
+                HStack(spacing: 8) {
+                    ForEach(3...7, id: \.self) { count in
+                        Button {
+                            draft.dinnerCount = count
+                            Haptics.selection()
+                        } label: {
+                            Text("\(count)")
+                                .font(.headline.bold())
+                                .frame(maxWidth: .infinity, minHeight: 48)
+                                .foregroundStyle(draft.dinnerCount == count ? .white : WeektableTheme.ink)
+                                .background(draft.dinnerCount == count ? WeektableTheme.brandDeep : WeektableTheme.surface, in: RoundedRectangle(cornerRadius: 14))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("\(count) dinners")
+                        .accessibilityAddTraits(draft.dinnerCount == count ? .isSelected : [])
                     }
                 }
-                .padding(16)
-                .background(WeektableTheme.raised, in: RoundedRectangle(cornerRadius: WeektableTheme.controlRadius))
-                .onChange(of: draft.householdSize) { _, _ in Haptics.selection() }
             }
-
-            VStack(alignment: .leading, spacing: 10) {
-                SectionLabel(text: "Dinners this week")
-                Picker("Dinners this week", selection: $draft.dinnerCount) {
-                    ForEach(3...7, id: \.self) { Text("\($0)").tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .onChange(of: draft.dinnerCount) { _, _ in Haptics.selection() }
-            }
+            .padding(17)
+            .coveCard()
 
             Toggle(isOn: $draft.plannedLeftovers) {
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text("Plan for leftovers").font(.headline)
-                    Text("Useful for lunches; dinner servings never shrink.")
-                        .font(.subheadline).foregroundStyle(.secondary)
+                    Text("Add extra servings for easy lunches.")
+                        .font(.subheadline)
+                        .foregroundStyle(WeektableTheme.secondaryInk)
                 }
             }
-            .tint(WeektableTheme.brand)
-            .padding(16)
-            .background(WeektableTheme.raised, in: RoundedRectangle(cornerRadius: WeektableTheme.controlRadius))
+            .tint(WeektableTheme.brandDeep)
+            .padding(17)
+            .coveCard(radius: WeektableTheme.controlRadius, shadow: false)
+            .onChange(of: draft.plannedLeftovers) { _, _ in Haptics.selection() }
         }
     }
 }
@@ -363,57 +420,79 @@ private struct FoodPreferencesStep: View {
         VStack(alignment: .leading, spacing: 22) {
             PlannerStepHeader(
                 eyebrow: "Make it yours",
-                title: "How should dinner feel?",
-                description: "Choose one direction. Allergies remain hard constraints no matter what you select."
+                title: "How do you want to eat?",
+                description: "Pick a general direction. Cove still balances the whole basket around your budget."
             )
 
-            SectionLabel(text: "General direction")
-            ForEach(NutritionStyle.allCases) { option in
-                SelectionCard(
-                    title: option.title,
-                    subtitle: option.subtitle,
-                    symbol: option.symbol,
-                    isSelected: draft.nutritionStyle == option
-                ) {
-                    draft.nutritionStyle = option
-                    Haptics.selection()
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 11) {
+                ForEach(Array(NutritionStyle.allCases.enumerated()), id: \.element) { index, option in
+                    SelectionCard(
+                        title: option.title,
+                        subtitle: option.subtitle,
+                        symbol: option.symbol,
+                        isSelected: draft.nutritionStyle == option,
+                        accent: WeektableTheme.preferenceAccent(at: index)
+                    ) {
+                        draft.nutritionStyle = option
+                        Haptics.selection()
+                    }
                 }
             }
 
-            SectionLabel(text: "Maximum cooking time")
-            Picker("Maximum cooking time", selection: $draft.maxCookingMinutes) {
-                ForEach([20, 30, 40, 60], id: \.self) { Text("\($0)m").tag($0) }
+            VStack(alignment: .leading, spacing: 12) {
+                SectionLabel(text: "Time in the kitchen")
+                HStack(spacing: 8) {
+                    ForEach([20, 30, 40, 60], id: \.self) { minutes in
+                        Button {
+                            draft.maxCookingMinutes = minutes
+                            Haptics.selection()
+                        } label: {
+                            Text("\(minutes)m")
+                                .font(.subheadline.bold())
+                                .frame(maxWidth: .infinity, minHeight: 46)
+                                .foregroundStyle(draft.maxCookingMinutes == minutes ? .white : WeektableTheme.ink)
+                                .background(draft.maxCookingMinutes == minutes ? WeektableTheme.brandDeep : WeektableTheme.surface, in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(draft.maxCookingMinutes == minutes ? .isSelected : [])
+                    }
+                }
             }
-            .pickerStyle(.segmented)
+            .padding(17)
+            .coveCard(shadow: false)
 
             DisclosureGroup(isExpanded: $restrictionsExpanded) {
-                VStack(alignment: .leading, spacing: 16) {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 10)], spacing: 10) {
+                VStack(alignment: .leading, spacing: 18) {
+                    Text("Allergies")
+                        .font(.headline)
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 112), spacing: 9)], spacing: 9) {
                         ForEach(allergyOptions, id: \.self) { allergy in
-                            Button {
-                                if draft.allergies.contains(allergy) { draft.allergies.remove(allergy) }
-                                else { draft.allergies.insert(allergy) }
-                                Haptics.selection()
-                            } label: {
-                                Label(allergy.capitalized, systemImage: draft.allergies.contains(allergy) ? "checkmark" : "plus")
-                                    .font(.subheadline.weight(.semibold))
-                                    .frame(maxWidth: .infinity, minHeight: 44)
+                            CoveChoiceChip(
+                                title: allergy.capitalized,
+                                symbol: "exclamationmark.shield",
+                                isSelected: draft.allergies.contains(allergy),
+                                accent: WeektableTheme.warning,
+                                isConstraint: true
+                            ) {
+                                toggle(allergy, in: &draft.allergies)
                             }
-                            .buttonStyle(.bordered)
-                            .tint(draft.allergies.contains(allergy) ? WeektableTheme.brand : .secondary)
-                            .accessibilityAddTraits(draft.allergies.contains(allergy) ? .isSelected : [])
                         }
                     }
 
-                    Label("Always verify packaged-food labels and cross-contact warnings.", systemImage: "exclamationmark.shield")
+                    Label("Allergies are hard constraints. Always verify package labels and cross-contact warnings.", systemImage: "checkmark.shield")
                         .font(.footnote)
-                        .foregroundStyle(.primary.opacity(0.78))
+                        .foregroundStyle(WeektableTheme.secondaryInk)
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Dietary restrictions").font(.headline)
+                    Text("Dietary restrictions")
+                        .font(.headline)
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 128), spacing: 9)], spacing: 9) {
                         ForEach(dietaryOptions, id: \.self) { restriction in
-                            Toggle(restriction.capitalized, isOn: setBinding(restriction, in: $draft.dietaryRestrictions))
-                                .frame(minHeight: 44)
+                            CoveChoiceChip(
+                                title: restriction.capitalized,
+                                isSelected: draft.dietaryRestrictions.contains(restriction)
+                            ) {
+                                toggle(restriction, in: &draft.dietaryRestrictions)
+                            }
                         }
                     }
 
@@ -425,30 +504,38 @@ private struct FoodPreferencesStep: View {
                             .background(WeektableTheme.surface, in: RoundedRectangle(cornerRadius: WeektableTheme.controlRadius))
                     }
                 }
-                .padding(.top, 16)
+                .padding(.top, 18)
             } label: {
-                HStack {
+                HStack(spacing: 12) {
+                    Image(systemName: "exclamationmark.shield.fill")
+                        .font(.title3)
+                        .foregroundStyle(WeektableTheme.warning)
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Restrictions").font(.headline)
-                        Text(draft.allergies.isEmpty ? "Allergies and foods to avoid" : "\(draft.allergies.count) allergies selected")
-                            .font(.subheadline).foregroundStyle(.secondary)
+                        Text("Anything we should avoid?").font(.headline)
+                        Text(draft.allergies.isEmpty ? "Allergies, restrictions and dislikes" : "\(draft.allergies.count) allergies selected")
+                            .font(.subheadline)
+                            .foregroundStyle(WeektableTheme.secondaryInk)
                     }
-                    Spacer()
-                    Image(systemName: "exclamationmark.shield")
-                        .foregroundStyle(WeektableTheme.brand)
                 }
             }
             .tint(WeektableTheme.brand)
-            .padding(16)
-            .background(WeektableTheme.raised, in: RoundedRectangle(cornerRadius: WeektableTheme.controlRadius))
+            .padding(17)
+            .coveCard()
 
             DisclosureGroup {
-                VStack(alignment: .leading, spacing: 14) {
-                    Text("Cuisines you enjoy").font(.headline)
-                    ForEach(cuisineOptions, id: \.self) { cuisine in
-                        Toggle(cuisine, isOn: setBinding(cuisine, in: $draft.preferredCuisines))
-                            .frame(minHeight: 44)
+                VStack(alignment: .leading, spacing: 16) {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 118), spacing: 9)], spacing: 9) {
+                        ForEach(Array(cuisineOptions.enumerated()), id: \.element) { index, cuisine in
+                            CoveChoiceChip(
+                                title: cuisine,
+                                isSelected: draft.preferredCuisines.contains(cuisine),
+                                accent: WeektableTheme.preferenceAccent(at: index + 2)
+                            ) {
+                                toggle(cuisine, in: &draft.preferredCuisines)
+                            }
+                        }
                     }
+
                     TextField(
                         "Optional notes for this week",
                         text: Binding(
@@ -461,26 +548,21 @@ private struct FoodPreferencesStep: View {
                     .padding(14)
                     .background(WeektableTheme.surface, in: RoundedRectangle(cornerRadius: WeektableTheme.controlRadius))
                 }
-                .padding(.top, 14)
+                .padding(.top, 16)
             } label: {
-                Label("More preferences", systemImage: "slider.horizontal.3")
+                Label("Cuisines and notes", systemImage: "sparkles")
                     .font(.headline)
             }
             .tint(WeektableTheme.brand)
-            .padding(16)
-            .background(WeektableTheme.raised, in: RoundedRectangle(cornerRadius: WeektableTheme.controlRadius))
+            .padding(17)
+            .coveCard(shadow: false)
         }
     }
 
-    private func setBinding(_ value: String, in set: Binding<Set<String>>) -> Binding<Bool> {
-        Binding(
-            get: { set.wrappedValue.contains(value) },
-            set: { selected in
-                if selected { set.wrappedValue.insert(value) }
-                else { set.wrappedValue.remove(value) }
-                Haptics.selection()
-            }
-        )
+    private func toggle(_ value: String, in set: inout Set<String>) {
+        if set.contains(value) { set.remove(value) }
+        else { set.insert(value) }
+        Haptics.selection()
     }
 }
 
@@ -494,64 +576,76 @@ private struct PantryStep: View {
             PlannerStepHeader(
                 eyebrow: "Use what you have",
                 title: "What is already in your kitchen?",
-                description: "These ingredients stay in recipes but come out of your grocery subtotal."
+                description: "Cove keeps these ingredients in recipes and removes them from your grocery subtotal."
             )
 
-            SectionLabel(text: "Common staples")
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 116), spacing: 10)], spacing: 10) {
-                ForEach(suggestions, id: \.self) { item in
-                    Button {
-                        if draft.pantryItems.contains(item) { draft.pantryItems.remove(item) }
-                        else { draft.pantryItems.insert(item) }
-                        Haptics.selection()
-                    } label: {
-                        Label(item.capitalized, systemImage: draft.pantryItems.contains(item) ? "checkmark" : "plus")
-                            .font(.subheadline.weight(.semibold))
-                            .frame(maxWidth: .infinity, minHeight: 46)
+            VStack(alignment: .leading, spacing: 14) {
+                SectionLabel(text: "Common staples")
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 116), spacing: 9)], spacing: 9) {
+                    ForEach(Array(suggestions.enumerated()), id: \.element) { index, item in
+                        CoveChoiceChip(
+                            title: item.capitalized,
+                            isSelected: draft.pantryItems.contains(item),
+                            accent: WeektableTheme.preferenceAccent(at: index)
+                        ) {
+                            togglePantryItem(item)
+                        }
                     }
-                    .buttonStyle(.bordered)
-                    .tint(draft.pantryItems.contains(item) ? WeektableTheme.brand : .secondary)
-                    .accessibilityAddTraits(draft.pantryItems.contains(item) ? .isSelected : [])
                 }
             }
+            .padding(17)
+            .coveCard()
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Add another ingredient").font(.headline)
+            VStack(alignment: .leading, spacing: 10) {
+                SectionLabel(text: "Add something else")
                 HStack(spacing: 10) {
                     TextField("Garlic powder", text: $newItem)
                         .textInputAutocapitalization(.never)
                         .submitLabel(.done)
                         .onSubmit(addPantryItem)
+                        .padding(.horizontal, 14)
+                        .frame(minHeight: 52)
+                        .background(WeektableTheme.surface, in: RoundedRectangle(cornerRadius: WeektableTheme.controlRadius))
                     Button("Add", action: addPantryItem)
-                        .fontWeight(.semibold)
+                        .fontWeight(.bold)
+                        .frame(minWidth: 58, minHeight: 52)
+                        .foregroundStyle(.white)
+                        .background(WeektableTheme.brandDeep, in: RoundedRectangle(cornerRadius: WeektableTheme.controlRadius))
                         .disabled(newItem.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
-                .padding(14)
-                .background(WeektableTheme.raised, in: RoundedRectangle(cornerRadius: WeektableTheme.controlRadius))
-                Text("Optional. Added items are excluded from the grocery subtotal when the server recognizes them.")
-                    .font(.caption).foregroundStyle(.secondary)
+                Text("Optional. Cove excludes recognized pantry items from the grocery subtotal.")
+                    .font(.footnote)
+                    .foregroundStyle(WeektableTheme.secondaryInk)
             }
 
             if !draft.pantryItems.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
-                    SectionLabel(text: "Selected pantry items")
+                    SectionLabel(text: "Already have")
                     ForEach(draft.pantryItems.sorted(), id: \.self) { item in
                         HStack {
-                            Text(item.capitalized)
+                            Label(item.capitalized, systemImage: "checkmark.circle.fill")
+                                .foregroundStyle(WeektableTheme.success)
                             Spacer()
-                            Button("Remove \(item)", systemImage: "xmark.circle.fill") {
+                            Button("Remove \(item)", systemImage: "xmark") {
                                 draft.pantryItems.remove(item)
                                 Haptics.selection()
                             }
                             .labelStyle(.iconOnly)
                             .frame(width: 44, height: 44)
                         }
+                        .font(.subheadline.weight(.semibold))
                     }
                 }
-                .padding(16)
-                .background(WeektableTheme.raised, in: RoundedRectangle(cornerRadius: WeektableTheme.controlRadius))
+                .padding(17)
+                .coveCard(fill: WeektableTheme.sage.opacity(0.10), shadow: false)
             }
         }
+    }
+
+    private func togglePantryItem(_ item: String) {
+        if draft.pantryItems.contains(item) { draft.pantryItems.remove(item) }
+        else { draft.pantryItems.insert(item) }
+        Haptics.selection()
     }
 
     private func addPantryItem() {

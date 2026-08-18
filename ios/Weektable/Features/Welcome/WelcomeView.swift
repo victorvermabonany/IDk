@@ -6,76 +6,62 @@ struct WelcomeView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            ZStack {
-                WeektableFoodImage(alignment: .center)
-                    .frame(width: proxy.size.width, height: proxy.size.height)
-                    .ignoresSafeArea()
-                    .overlay {
-                        LinearGradient(
-                            colors: [.black.opacity(0.04), .black.opacity(0.2), .black.opacity(0.94)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                        .ignoresSafeArea()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    CoveBrandMark()
+                        .padding(.top, 8)
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Your week, planned.")
+                            .font(dynamicTypeSize.isAccessibilitySize ? .largeTitle.bold() : .coveDisplay)
+                            .foregroundStyle(WeektableTheme.ink)
+                            .accessibilityAddTraits(.isHeader)
+
+                        Text("Tell Cove where you shop, what you want to spend, and how you like to eat. Cove plans the week around it.")
+                            .font(.body)
+                            .foregroundStyle(WeektableTheme.secondaryInk)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
 
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        Spacer(minLength: dynamicTypeSize.isAccessibilitySize ? 120 : max(150, proxy.size.height * 0.32))
-                        welcomeContent
+                    CoveFoodMosaic(height: mosaicHeight(for: proxy.size.height))
+
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 16) {
+                            welcomeFact("About 3 minutes", symbol: "clock")
+                            welcomeFact("No account needed", symbol: "person.crop.circle.badge.checkmark")
+                        }
+                        VStack(alignment: .leading, spacing: 10) {
+                            welcomeFact("About 3 minutes", symbol: "clock")
+                            welcomeFact("No account needed", symbol: "person.crop.circle.badge.checkmark")
+                        }
                     }
-                    .frame(minHeight: proxy.size.height, alignment: .bottom)
-                    .padding(.horizontal, WeektableTheme.pagePadding)
-                    .padding(.bottom, 16)
                 }
-                .frame(width: proxy.size.width, height: proxy.size.height)
-                .scrollBounceBehavior(.basedOnSize)
+                .padding(.horizontal, WeektableTheme.pagePadding)
+                .padding(.bottom, 112)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(width: proxy.size.width, height: proxy.size.height)
-            .clipped()
+            .scrollBounceBehavior(.basedOnSize)
+        }
+        .background(WeektableTheme.canvas.ignoresSafeArea())
+        .safeAreaInset(edge: .bottom) {
+            Button("Plan my first week") { appModel.showPlanner() }
+                .buttonStyle(PrimaryButtonStyle())
+                .accessibilityHint("Starts the four-step dinner planner")
+                .padding(.horizontal, WeektableTheme.pagePadding)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
+                .background(.ultraThinMaterial)
         }
     }
 
-    private var welcomeContent: some View {
-        VStack(alignment: .leading, spacing: 16) {
-                Label("COVE", systemImage: "fork.knife")
-                    .font(.caption.weight(.black))
-                    .tracking(1.2)
-                    .foregroundStyle(.white.opacity(0.9))
-
-                Text("Your week, planned.")
-                    .font(dynamicTypeSize.isAccessibilitySize ? .title.bold() : .system(size: 38, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .accessibilityAddTraits(.isHeader)
-
-                Text("Tell us where you shop, what you want to spend, and how you like to eat. We’ll handle the week.")
-                    .font(.title3)
-                    .foregroundStyle(.white.opacity(0.88))
-                    .fixedSize(horizontal: false, vertical: true)
-
-                HStack(spacing: 18) {
-                    Label("About 3 min", systemImage: "clock")
-                    Label("No account", systemImage: "person.crop.circle.badge.checkmark")
-                }
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(.white.opacity(0.82))
-
-                Button("Plan my first week") { appModel.showPlanner() }
-                    .buttonStyle(PrimaryButtonStyle())
-                    .accessibilityHint("Starts the four-step dinner planner")
-        }
+    private func mosaicHeight(for availableHeight: CGFloat) -> CGFloat {
+        if dynamicTypeSize.isAccessibilitySize { return 250 }
+        return min(340, max(260, availableHeight * 0.39))
     }
-}
 
-struct WeektableFoodImage: View {
-    let alignment: Alignment
-
-    var body: some View {
-        Image("weektable-dinners")
-            .resizable()
-            .scaledToFill()
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)
-            .clipped()
-            .accessibilityHidden(true)
+    private func welcomeFact(_ text: String, symbol: String) -> some View {
+        Label(text, systemImage: symbol)
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(WeektableTheme.secondaryInk)
     }
 }
