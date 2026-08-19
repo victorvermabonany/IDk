@@ -158,7 +158,6 @@ jobs:
             -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
             CODE_SIGN_STYLE=Automatic \
-            CODE_SIGN_IDENTITY='Apple Distribution' \
             PRODUCT_BUNDLE_IDENTIFIER="$COVE_BUNDLE_ID" \
             CURRENT_PROJECT_VERSION="$COVE_BUILD_NUMBER" \
             COVE_RUNTIME_MODE="$COVE_RUNTIME_MODE" \
@@ -168,8 +167,7 @@ jobs:
             COVE_SUPPORT_URL="$COVE_SUPPORT_URL" \
             | tee build/testflight-archive.log
 
-      - name: Verify the archive and App Store provisioning profile
-        id: verify-profile
+      - name: Verify the archive structure
         working-directory: ios
         shell: bash
         run: |
@@ -181,36 +179,6 @@ jobs:
             exit 1
           }
           APP_PATH="${ARCHIVED_APPS[0]}"
-          PROFILE_PATH="$APP_PATH/embedded.mobileprovision"
-          PROFILE_PLIST="$RUNNER_TEMP/cove-app-store-profile.plist"
-          [[ -f "$PROFILE_PATH" ]] || {
-            echo "The archive has no embedded provisioning profile." >&2
-            exit 1
-          }
-
-          security cms -D -i "$PROFILE_PATH" > "$PROFILE_PLIST"
-          read_profile() { /usr/libexec/PlistBuddy -c "Print :$1" "$PROFILE_PLIST"; }
-          [[ "$(read_profile TeamIdentifier:0)" == "$APPLE_TEAM_ID" ]] || {
-            echo "The provisioning profile belongs to a different Apple team." >&2
-            exit 1
-          }
-          [[ "$(read_profile Entitlements:application-identifier)" == "$APPLE_TEAM_ID.$COVE_BUNDLE_ID" ]] || {
-            echo "The provisioning profile does not authorize $COVE_BUNDLE_ID." >&2
-            exit 1
-          }
-          [[ "$(read_profile Entitlements:get-task-allow)" == "false" ]] || {
-            echo "The archive used a development provisioning profile." >&2
-            exit 1
-          }
-          if /usr/libexec/PlistBuddy -c 'Print :ProvisionedDevices' "$PROFILE_PLIST" >/dev/null 2>&1; then
-            echo "The archive used a device-limited profile instead of App Store Connect distribution." >&2
-            exit 1
-          fi
-          if /usr/libexec/PlistBuddy -c 'Print :ProvisionsAllDevices' "$PROFILE_PLIST" >/dev/null 2>&1; then
-            echo "The archive used an enterprise profile instead of App Store Connect distribution." >&2
-            exit 1
-          fi
-
           codesign --verify --deep --strict "$APP_PATH"
           [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_PATH/Info.plist")" == "$COVE_BUNDLE_ID" ]] || {
             echo "The archived bundle identifier is incorrect." >&2
@@ -220,11 +188,6 @@ jobs:
             echo "The archived build number is incorrect." >&2
             exit 1
           }
-
-          PROFILE_NAME="$(read_profile Name)"
-          PROFILE_UUID="$(read_profile UUID)"
-          echo "profile_name=$PROFILE_NAME" >> "$GITHUB_OUTPUT"
-          echo "profile_uuid=$PROFILE_UUID" >> "$GITHUB_OUTPUT"
 
       - name: Export the signed App Store IPA
         working-directory: ios
@@ -243,6 +206,8 @@ jobs:
             <string>app-store-connect</string>
             <key>signingStyle</key>
             <string>automatic</string>
+            <key>signingCertificate</key>
+            <string>Apple Distribution</string>
             <key>stripSwiftSymbols</key>
             <true/>
             <key>teamID</key>
@@ -265,6 +230,7 @@ jobs:
             | tee build/testflight-export.log
 
       - name: Verify the exported IPA
+        id: verify-profile
         working-directory: ios
         shell: bash
         run: |
@@ -290,6 +256,40 @@ jobs:
           [[ "$(read_key CFBundleIdentifier)" == "$COVE_BUNDLE_ID" ]] || exit 1
           [[ "$(read_key CFBundleVersion)" == "$COVE_BUILD_NUMBER" ]] || exit 1
           [[ "$(read_key COVE_RUNTIME_MODE)" == "PRODUCTION_LIVE" ]] || exit 1
+
+          PROFILE_PATH="$APP_PATH/embedded.mobileprovision"
+          PROFILE_PLIST="$RUNNER_TEMP/cove-app-store-profile.plist"
+          [[ -f "$PROFILE_PATH" ]] || {
+            echo "The exported app has no embedded provisioning profile." >&2
+            exit 1
+          }
+          security cms -D -i "$PROFILE_PATH" > "$PROFILE_PLIST"
+          read_profile() { /usr/libexec/PlistBuddy -c "Print :$1" "$PROFILE_PLIST"; }
+          [[ "$(read_profile TeamIdentifier:0)" == "$APPLE_TEAM_ID" ]] || {
+            echo "The provisioning profile belongs to a different Apple team." >&2
+            exit 1
+          }
+          [[ "$(read_profile Entitlements:application-identifier)" == "$APPLE_TEAM_ID.$COVE_BUNDLE_ID" ]] || {
+            echo "The provisioning profile does not authorize $COVE_BUNDLE_ID." >&2
+            exit 1
+          }
+          [[ "$(read_profile Entitlements:get-task-allow)" == "false" ]] || {
+            echo "The exported IPA used a development provisioning profile." >&2
+            exit 1
+          }
+          if /usr/libexec/PlistBuddy -c 'Print :ProvisionedDevices' "$PROFILE_PLIST" >/dev/null 2>&1; then
+            echo "The exported IPA used a device-limited profile instead of App Store Connect distribution." >&2
+            exit 1
+          fi
+          if /usr/libexec/PlistBuddy -c 'Print :ProvisionsAllDevices' "$PROFILE_PLIST" >/dev/null 2>&1; then
+            echo "The exported IPA used an enterprise profile instead of App Store Connect distribution." >&2
+            exit 1
+          fi
+
+          PROFILE_NAME="$(read_profile Name)"
+          PROFILE_UUID="$(read_profile UUID)"
+          echo "profile_name=$PROFILE_NAME" >> "$GITHUB_OUTPUT"
+          echo "profile_uuid=$PROFILE_UUID" >> "$GITHUB_OUTPUT"
           cp "$IPA_PATH" build/Cove-TestFlight.ipa
 
       - name: Upload the verified IPA artifact
@@ -318,6 +318,8 @@ jobs:
             <string>app-store-connect</string>
             <key>signingStyle</key>
             <string>automatic</string>
+            <key>signingCertificate</key>
+            <string>Apple Distribution</string>
             <key>teamID</key>
             <string>$APPLE_TEAM_ID</string>
             <key>uploadSymbols</key>
