@@ -131,23 +131,25 @@ jobs:
 
           "$OPENSSL_BIN" pkcs12 \
             -export \
+            -legacy \
             -inkey "$PRIVATE_KEY" \
             -in "$CERTIFICATE_PEM" \
             -name "Cove Apple Distribution" \
-            -keypbe AES-256-CBC \
-            -certpbe AES-256-CBC \
-            -macalg sha256 \
-            -iter 100000 \
+            -keypbe PBE-SHA1-3DES \
+            -certpbe PBE-SHA1-3DES \
+            -macalg sha1 \
+            -iter 2048 \
             -out "$P12_FILE" \
             -passout env:SIGNING_PASSWORD
           chmod 600 "$P12_FILE"
 
           "$OPENSSL_BIN" pkcs12 \
+            -legacy \
             -in "$P12_FILE" \
             -passin env:SIGNING_PASSWORD \
             -noout \
             -info 2>&1 \
-            | grep -q "MAC: sha256" || {
+            | grep -q "MAC: sha1" || {
               echo "The PKCS12 integrity check failed." >&2
               exit 1
             }
