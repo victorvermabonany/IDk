@@ -93,6 +93,8 @@ struct MealSwapSheet: View {
                 VStack(alignment: .leading, spacing: 7) {
                     Text(preview.meal.title)
                         .font(.coveCardTitle)
+                        .lineLimit(2, reservesSpace: true)
+                        .fixedSize(horizontal: false, vertical: true)
                     HStack(spacing: 8) {
                         CoveStatusPill(text: "\(preview.meal.totalMinutes)m", symbol: "clock", color: accent)
                         CoveStatusPill(text: "\(preview.reusedIngredientCount) reused", symbol: "arrow.triangle.2.circlepath", color: WeektableTheme.brand)

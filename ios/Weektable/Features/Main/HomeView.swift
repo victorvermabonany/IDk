@@ -15,8 +15,9 @@ struct HomeView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 0) {
                 header
+                    .padding(.bottom, WeektableTheme.spacingS)
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(greeting)
@@ -26,16 +27,19 @@ struct HomeView: View {
                         .font(.coveTitle)
                         .foregroundStyle(WeektableTheme.ink)
                 }
+                .padding(.bottom, WeektableTheme.spacingL)
 
                 assistantBar
+                    .padding(.bottom, WeektableTheme.spacingM)
 
                 if let plan {
                     weekHero(plan)
                 } else {
                     emptyWeekHero
                 }
+                .padding(.bottom, WeektableTheme.spacingM)
 
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
                     tonightTile
                     groceriesTile
                     pantryTile
@@ -55,13 +59,6 @@ struct HomeView: View {
             CoveBrandMark()
                 .scaleEffect(0.9, anchor: .leading)
             Spacer()
-            Button { } label: {
-                Image(systemName: "bell")
-                    .font(.system(size: 19, weight: .medium))
-                    .foregroundStyle(WeektableTheme.ink)
-                    .frame(width: 38, height: 38)
-            }
-            .accessibilityLabel("Notifications")
             Button { appModel.presentSettings() } label: {
                 Image(systemName: "person.crop.circle.fill")
                     .font(.system(size: 32))
@@ -187,7 +184,13 @@ struct HomeView: View {
         Button {
             if plan == nil { appModel.showPlanner() } else { appModel.selectWeek() }
         } label: {
-            DashboardTile(title: "Tonight", subtitle: tonight?.title ?? "No dinner planned", detail: tonight.map { "\($0.totalMinutes) min" }, imageName: tonight?.imageAssetName)
+            DashboardTile(
+                title: "Tonight",
+                subtitle: tonight?.title ?? "No dinner planned",
+                detail: tonight.map { "\($0.totalMinutes) min" },
+                imageName: tonight?.imageAssetName,
+                focalX: tonight?.imageAlignment ?? 0.5
+            )
         }
         .buttonStyle(.plain)
     }
@@ -228,8 +231,8 @@ struct HomeView: View {
             }
             .foregroundStyle(WeektableTheme.ink)
             .padding(12)
-            .frame(maxWidth: .infinity, minHeight: 128, maxHeight: 128, alignment: .leading)
-            .coveCard(radius: 20)
+            .frame(maxWidth: .infinity, minHeight: 116, maxHeight: 116, alignment: .leading)
+            .coveCard(radius: 18, fill: WeektableTheme.surface.opacity(0.62), shadow: false)
         }
         .buttonStyle(.plain)
     }
@@ -254,37 +257,37 @@ private struct DashboardTile: View {
     let subtitle: String
     let detail: String?
     let imageName: String?
+    var focalX: Double = 0.5
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
             VStack(alignment: .leading, spacing: 5) {
-                Text(title).font(.headline)
+                Text(title).font(.subheadline.weight(.semibold))
                 Text(subtitle)
-                    .font(.subheadline)
+                    .font(.footnote)
                     .foregroundStyle(WeektableTheme.ink)
-                    .lineLimit(2)
-                    .frame(maxWidth: imageName == nil ? .infinity : 94, alignment: .leading)
+                    .lineLimit(2, reservesSpace: true)
+                    .frame(maxWidth: imageName == nil ? .infinity : 92, alignment: .leading)
                 if let detail {
                     Text(detail)
-                        .font(.caption)
+                        .font(.caption2.weight(.medium))
                         .foregroundStyle(WeektableTheme.brand)
+                        .lineLimit(1)
                 }
                 Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
             if let imageName {
-                Image(imageName)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 58, height: 48)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                FocalImage(assetName: imageName, focalX: focalX)
+                    .frame(width: 52, height: 44)
+                    .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
                     .accessibilityHidden(true)
             }
         }
         .foregroundStyle(WeektableTheme.ink)
         .padding(12)
-        .frame(maxWidth: .infinity, minHeight: 128, maxHeight: 128, alignment: .leading)
-        .coveCard(radius: 20)
+        .frame(maxWidth: .infinity, minHeight: 116, maxHeight: 116, alignment: .leading)
+        .coveCard(radius: 18, fill: WeektableTheme.surface.opacity(0.62), shadow: false)
     }
 }

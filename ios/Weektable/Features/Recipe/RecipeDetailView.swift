@@ -14,6 +14,7 @@ struct RecipeDetailView: View {
                     Text(meal.title)
                         .font(.coveTitle)
                         .foregroundStyle(WeektableTheme.ink)
+                        .fixedSize(horizontal: false, vertical: true)
                         .accessibilityAddTraits(.isHeader)
                     Text(meal.description)
                         .font(.body)
@@ -26,6 +27,16 @@ struct RecipeDetailView: View {
                         RecipeStat(value: "~\(estimatedMealCost.currency)", label: "Estimated basket share", symbol: "basket")
                         RecipeStat(value: "\(meal.proteinGrams)g", label: "Protein", symbol: "bolt")
                     }
+
+                    Button { appModel.openSwap(for: meal) } label: {
+                        Label("Swap this dinner", systemImage: "arrow.triangle.2.circlepath")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(WeektableTheme.brand)
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .background(WeektableTheme.selected, in: RoundedRectangle(cornerRadius: WeektableTheme.compactRadius, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Shows alternative dinners that preserve your plan")
 
                     if ingredientReuseCount > 0 {
                         Label("\(ingredientReuseCount) ingredients also work in another dinner this week", systemImage: "arrow.triangle.2.circlepath")
@@ -51,11 +62,12 @@ struct RecipeDetailView: View {
                                     .frame(width: 7, height: 7)
                                 Text(ingredient.name)
                                     .foregroundStyle(WeektableTheme.ink)
-                                Spacer()
+                                Spacer(minLength: 16)
                                 Text(ingredient.formattedQuantity)
                                     .fontWeight(.semibold)
                                     .foregroundStyle(WeektableTheme.secondaryInk)
                                     .multilineTextAlignment(.trailing)
+                                    .fixedSize(horizontal: true, vertical: false)
                             }
                             .padding(.vertical, 14)
                             if ingredient.id != meal.ingredients.last?.id { Divider() }
@@ -87,7 +99,7 @@ struct RecipeDetailView: View {
                                 .foregroundStyle(WeektableTheme.ink)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
-                        .padding(17)
+                        .padding(16)
                         .coveCard(radius: WeektableTheme.controlRadius, shadow: false)
                     }
                 }
@@ -120,20 +132,16 @@ struct RecipeDetailView: View {
                 }
                 .accessibilityLabel(cookingMode ? "Use standard text size" : "Use larger cooking text")
 
-                Menu {
-                    Button("Swap this dinner", systemImage: "arrow.triangle.2.circlepath") { appModel.openSwap(for: meal) }
-                    Button("Open groceries", systemImage: "cart") { appModel.selectGroceries() }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                }
-                .accessibilityLabel("Recipe actions")
+                Button("Open groceries", systemImage: "cart") { appModel.selectGroceries() }
+                    .labelStyle(.iconOnly)
+                    .accessibilityHint("Opens the grocery list")
             }
         }
     }
 
     private var hero: some View {
         MealPhoto(meal: meal)
-            .frame(height: 300)
+            .frame(height: 288)
             .clipped()
             .containerRelativeFrame(.horizontal)
             .overlay(alignment: .bottomLeading) {
@@ -183,9 +191,10 @@ private struct RecipeStat: View {
                 Text(label)
                     .font(.caption)
                     .foregroundStyle(WeektableTheme.secondaryInk)
+                    .lineLimit(2, reservesSpace: true)
             }
         }
-        .frame(maxWidth: .infinity, minHeight: 58, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
         .padding(.horizontal, 12)
         .background(WeektableTheme.surface.opacity(0.76), in: RoundedRectangle(cornerRadius: 15))
         .accessibilityElement(children: .combine)

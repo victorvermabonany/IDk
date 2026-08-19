@@ -67,6 +67,12 @@ enum WeektableTheme {
     static let controlRadius: CGFloat = 17
     static let compactRadius: CGFloat = 12
     static let pagePadding: CGFloat = 20
+    static let spacingXS: CGFloat = 4
+    static let spacingS: CGFloat = 8
+    static let spacingM: CGFloat = 12
+    static let spacingL: CGFloat = 16
+    static let spacingXL: CGFloat = 24
+    static let primaryButtonHeight: CGFloat = 56
 
     static func preferenceAccent(at index: Int) -> Color {
         [brand, terracotta, sky, gold, sage, brandDeep][index % 6]
@@ -90,7 +96,7 @@ struct PrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.headline.weight(.bold))
-            .frame(maxWidth: .infinity, minHeight: 58)
+            .frame(maxWidth: .infinity, minHeight: WeektableTheme.primaryButtonHeight)
             .foregroundStyle(.white)
             .background(isEnabled ? WeektableTheme.brandDeep : WeektableTheme.disabled)
             .clipShape(RoundedRectangle(cornerRadius: WeektableTheme.controlRadius, style: .continuous))

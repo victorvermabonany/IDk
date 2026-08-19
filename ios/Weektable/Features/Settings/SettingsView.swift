@@ -126,6 +126,7 @@ private struct SubscriptionSettingsView: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
                 .presentationCornerRadius(30)
+                .presentationBackground(WeektableTheme.canvas)
         }
     }
 }

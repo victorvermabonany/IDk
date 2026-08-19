@@ -66,6 +66,7 @@ struct WelcomeView: View {
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
                 .presentationCornerRadius(30)
+                .presentationBackground(WeektableTheme.canvas)
         }
     }
 }

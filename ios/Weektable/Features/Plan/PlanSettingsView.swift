@@ -70,6 +70,9 @@ struct PlanSettingsView: View {
             PlanEditSheet(appModel: appModel, target: target)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
+                .presentationCornerRadius(28)
+                .presentationBackground(WeektableTheme.canvas)
+                .presentationContentInteraction(.scrolls)
         }
     }
 

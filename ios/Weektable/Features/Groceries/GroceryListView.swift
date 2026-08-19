@@ -46,7 +46,7 @@ struct GroceryListView: View {
                                         onCheck: { appModel.toggleChecked(item.id) },
                                         onOwned: { appModel.toggleOwned(item.id) }
                                     )
-                                    .listRowInsets(EdgeInsets(top: 4, leading: WeektableTheme.pagePadding, bottom: 4, trailing: WeektableTheme.pagePadding))
+                                    .listRowInsets(EdgeInsets(top: 0, leading: WeektableTheme.pagePadding, bottom: 0, trailing: WeektableTheme.pagePadding))
                                     .listRowBackground(Color.clear)
                                     .listRowSeparator(.hidden)
                                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
@@ -136,9 +136,10 @@ private struct GrocerySummaryCard: View {
     let budgetCents: Int
     let itemsLeft: Int
     let dinnerCount: Int
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 17) {
+        VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Label("Estimated basket", systemImage: "basket.fill")
                     .font(.caption.weight(.black))
@@ -151,7 +152,7 @@ private struct GrocerySummaryCard: View {
 
             HStack(alignment: .lastTextBaseline, spacing: 5) {
                 Text(totalCents.currency)
-                    .font(.system(size: 34, weight: .bold, design: .rounded))
+                    .font(.system(size: 30, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .contentTransition(.numericText())
                 Text("of \(budgetCents.currency)")
@@ -173,9 +174,10 @@ private struct GrocerySummaryCard: View {
             .font(.subheadline.weight(.semibold))
         }
         .foregroundStyle(.white)
-        .padding(20)
+        .padding(18)
         .background(WeektableTheme.brandDeep, in: RoundedRectangle(cornerRadius: WeektableTheme.heroRadius, style: .continuous))
-        .shadow(color: WeektableTheme.brandDeep.opacity(0.18), radius: 16, y: 8)
+        .shadow(color: WeektableTheme.brandDeep.opacity(0.14), radius: 14, y: 7)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: totalCents)
         .accessibilityElement(children: .combine)
     }
 
@@ -214,9 +216,11 @@ private struct GroceryRow: View {
                         .font(.body.weight(.semibold))
                         .strikethrough(isChecked)
                         .foregroundStyle(isChecked ? WeektableTheme.secondaryInk : WeektableTheme.ink)
+                        .lineLimit(2)
                     Text("\(item.packageCount) × \(item.packageDisplay) · need \(item.requiredDisplay)")
                         .font(.caption)
                         .foregroundStyle(WeektableTheme.secondaryInk)
+                        .fixedSize(horizontal: false, vertical: true)
                     if expanded, !mealTitles.isEmpty {
                         Text("Used in \(mealTitles.joined(separator: ", "))")
                             .font(.caption)
@@ -252,16 +256,17 @@ private struct GroceryRow: View {
                         .font(.caption)
                         .foregroundStyle(WeektableTheme.secondaryInk)
                 }
-                .frame(minWidth: 62, minHeight: 44, alignment: .trailing)
+                .frame(width: 76, minHeight: 44, alignment: .trailing)
             }
             .accessibilityLabel("\(isOwned ? "On hand" : item.totalPriceCents.currency), options for \(item.productName)")
         }
         .padding(.vertical, 9)
-        .padding(.horizontal, 10)
-        .background(rowFill, in: RoundedRectangle(cornerRadius: WeektableTheme.controlRadius, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: WeektableTheme.controlRadius, style: .continuous)
-                .stroke(rowStroke, lineWidth: 0.75)
+        .padding(.horizontal, 4)
+        .background(rowFill)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(rowStroke)
+                .frame(height: 0.75)
         }
         .opacity(isChecked ? 0.64 : 1)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: isChecked)
@@ -284,9 +289,9 @@ private struct GroceryRow: View {
     }
 
     private var rowFill: Color {
-        if isOwned { return WeektableTheme.sage.opacity(0.12) }
-        if isChecked { return WeektableTheme.surface.opacity(0.64) }
-        return WeektableTheme.raised
+        if isOwned { return WeektableTheme.sage.opacity(0.09) }
+        if isChecked { return WeektableTheme.surface.opacity(0.44) }
+        return .clear
     }
 
     private var rowStroke: Color {

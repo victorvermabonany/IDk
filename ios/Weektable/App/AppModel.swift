@@ -414,6 +414,12 @@ final class AppModel {
     private func applyDebugLaunchState() {
         let arguments = ProcessInfo.processInfo.arguments
         if arguments.contains("-cove-ui-test-week") { selectedTab = .week }
+        if arguments.contains("-cove-ui-test-groceries") { selectedTab = .groceries }
+        if arguments.contains("-cove-ui-test-pantry") { selectedTab = .pantry }
+        if arguments.contains("-cove-ui-test-recipe"), let meal = plan?.meals.first {
+            selectedTab = .week
+            weekNavigationPath = [meal.id]
+        }
         if arguments.contains("-cove-ui-test-assistant") { assistantPresented = true }
     }
 #endif

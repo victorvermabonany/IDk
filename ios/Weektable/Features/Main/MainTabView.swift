@@ -19,25 +19,25 @@ struct MainTabView: View {
             NavigationStack {
                 HomeView(appModel: appModel)
             }
-            .tabItem { Label("Home", systemImage: "house") }
+            .tabItem { Label("Home", systemImage: appModel.selectedTab == .home ? "house.fill" : "house") }
             .tag(AppTab.home)
 
             NavigationStack(path: $appModel.weekNavigationPath) {
                 WeekHomeView(appModel: appModel)
             }
-            .tabItem { Label("Week", systemImage: "calendar") }
+            .tabItem { Label("Week", systemImage: appModel.selectedTab == .week ? "calendar.circle.fill" : "calendar") }
             .tag(AppTab.week)
 
             NavigationStack {
                 GroceryListView(appModel: appModel)
             }
-            .tabItem { Label("Groceries", systemImage: "cart") }
+            .tabItem { Label("Groceries", systemImage: appModel.selectedTab == .groceries ? "cart.fill" : "cart") }
             .tag(AppTab.groceries)
 
             NavigationStack {
                 PantryView(appModel: appModel)
             }
-            .tabItem { Label("Pantry", systemImage: "cabinet") }
+            .tabItem { Label("Pantry", systemImage: appModel.selectedTab == .pantry ? "cabinet.fill" : "cabinet") }
             .tag(AppTab.pantry)
         }
         .tint(WeektableTheme.terracotta)
@@ -51,6 +51,8 @@ struct MainTabView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
                 .presentationCornerRadius(28)
+                .presentationBackground(WeektableTheme.canvas)
+                .presentationContentInteraction(.scrolls)
         }
         .sheet(item: $appModel.paywallTrigger) { feature in
             if FeatureFlags.subscriptionsEnabled {
@@ -58,6 +60,7 @@ struct MainTabView: View {
                     .presentationDetents([.large])
                     .presentationDragIndicator(.visible)
                     .presentationCornerRadius(30)
+                    .presentationBackground(WeektableTheme.canvas)
             }
         }
         .sheet(isPresented: $appModel.settingsPresented) {
@@ -65,6 +68,8 @@ struct MainTabView: View {
                 SettingsView(appModel: appModel)
             }
             .presentationDragIndicator(.visible)
+            .presentationCornerRadius(28)
+            .presentationBackground(WeektableTheme.canvas)
         }
     }
 }

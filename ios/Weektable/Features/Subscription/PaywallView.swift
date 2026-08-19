@@ -45,12 +45,13 @@ struct PaywallView: View {
                     .buttonStyle(PrimaryButtonStyle())
                     .disabled(isPurchasing || selectedProduct == nil)
 
-                    Button(subscriptions.isRestoring ? "Restoring…" : "Restore purchases") {
+                    Button {
                         Task { await restore() }
+                    } label: {
+                        Text(subscriptions.isRestoring ? "Restoring…" : "Restore purchases")
+                            .frame(maxWidth: .infinity)
                     }
-                    .font(.headline)
-                    .foregroundStyle(WeektableTheme.brandDeep)
-                    .frame(maxWidth: .infinity, minHeight: 48)
+                    .buttonStyle(SecondaryButtonStyle())
                     .disabled(isPurchasing || subscriptions.isRestoring)
 
                     Text("Payment is charged to your Apple ID. Subscriptions renew automatically unless cancelled in App Store settings before the current period ends.")
