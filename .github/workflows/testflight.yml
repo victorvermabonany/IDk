@@ -32,7 +32,7 @@ env:
 jobs:
   archive-and-upload:
     name: Signed App Store archive and TestFlight upload
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 45
     env:
       APPLE_DISTRIBUTION_P12_B64: ${{ secrets.APPLE_DISTRIBUTION_P12_B64 }}
@@ -45,6 +45,21 @@ jobs:
     steps:
       - name: Check out Cove
         uses: actions/checkout@v4
+
+      - name: Validate the App Store SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          XCODE_VERSION="$(xcodebuild -version | awk 'NR == 1 { print $2 }')"
+          IOS_SDK_VERSION="$(xcrun --sdk iphoneos --show-sdk-version)"
+          [[ "${XCODE_VERSION%%.*}" -ge 26 ]] || {
+            echo "App Store Connect requires Xcode 26 or later; runner selected Xcode $XCODE_VERSION." >&2
+            exit 1
+          }
+          [[ "${IOS_SDK_VERSION%%.*}" -ge 26 ]] || {
+            echo "App Store Connect requires the iOS 26 SDK or later; runner selected $IOS_SDK_VERSION." >&2
+            exit 1
+          }
 
       - name: Validate signing and App Store Connect secrets
         shell: bash
@@ -171,9 +186,32 @@ jobs:
           echo "COVE_PROFILE_UUID=$PROFILE_UUID" >> "$GITHUB_ENV"
           echo "COVE_PROFILE_PATH=$PROFILE_DESTINATION" >> "$GITHUB_ENV"
 
-      - name: Install XcodeGen
+      - name: Install XcodeGen and image tooling
         shell: bash
-        run: brew install xcodegen
+        run: brew install xcodegen imagemagick
+
+      - name: Prepare App Store bundle metadata
+        working-directory: ios
+        shell: bash
+        run: |
+          set -euo pipefail
+          ICON_PATH='Weektable/Assets.xcassets/AppIcon.appiconset/AppIcon.png'
+          OPAQUE_ICON="$RUNNER_TEMP/Cove-AppIcon-opaque.png"
+          magick "$ICON_PATH" -alpha off "$OPAQUE_ICON"
+          mv "$OPAQUE_ICON" "$ICON_PATH"
+          CHANNELS="$(magick identify -format '%[channels]' "$ICON_PATH")"
+          [[ "$CHANNELS" != *a* ]] || {
+            echo "The App Store icon still contains an alpha channel." >&2
+            exit 1
+          }
+
+          PLIST='Weektable/Configuration/Info.plist'
+          /usr/libexec/PlistBuddy -c 'Delete :UISupportedInterfaceOrientations~ipad' "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c 'Add :UISupportedInterfaceOrientations~ipad array' "$PLIST"
+          /usr/libexec/PlistBuddy -c 'Add :UISupportedInterfaceOrientations~ipad:0 string UIInterfaceOrientationPortrait' "$PLIST"
+          /usr/libexec/PlistBuddy -c 'Add :UISupportedInterfaceOrientations~ipad:1 string UIInterfaceOrientationPortraitUpsideDown' "$PLIST"
+          /usr/libexec/PlistBuddy -c 'Add :UISupportedInterfaceOrientations~ipad:2 string UIInterfaceOrientationLandscapeLeft' "$PLIST"
+          /usr/libexec/PlistBuddy -c 'Add :UISupportedInterfaceOrientations~ipad:3 string UIInterfaceOrientationLandscapeRight' "$PLIST"
 
       - name: Generate the Xcode project
         working-directory: ios
