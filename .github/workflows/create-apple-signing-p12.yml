@@ -1,0 +1,220 @@
+name: "One-time: Create Apple Distribution P12"
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type CREATE COVE P12 to confirm one-time PKCS#12 packaging
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cove-apple-distribution-p12
+  cancel-in-progress: false
+
+jobs:
+  create-p12:
+    name: Package and verify the Apple signing identity
+    runs-on: macos-15
+    timeout-minutes: 10
+    env:
+      CERTIFICATE_CER_B64: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE_CER_B64 }}
+      ENCRYPTED_PRIVATE_KEY_B64: ${{ secrets.APPLE_DISTRIBUTION_PRIVATE_KEY_ENCRYPTED_B64 }}
+      SIGNING_PASSWORD: ${{ secrets.APPLE_CERT_PRIVATE_KEY_PASSWORD }}
+      EXPECTED_TEAM_ID: 7463H7378K
+      CONFIRMATION: ${{ inputs.confirmation }}
+
+    steps:
+      - name: Validate one-time request and required secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$CONFIRMATION" == "CREATE COVE P12" ]] || {
+            echo "Confirmation did not match CREATE COVE P12." >&2
+            exit 1
+          }
+          [[ -n "$CERTIFICATE_CER_B64" ]] || {
+            echo "APPLE_DISTRIBUTION_CERTIFICATE_CER_B64 is not configured." >&2
+            exit 1
+          }
+          [[ -n "$ENCRYPTED_PRIVATE_KEY_B64" ]] || {
+            echo "APPLE_DISTRIBUTION_PRIVATE_KEY_ENCRYPTED_B64 is not configured." >&2
+            exit 1
+          }
+          [[ ${#SIGNING_PASSWORD} -ge 24 ]] || {
+            echo "APPLE_CERT_PRIVATE_KEY_PASSWORD must contain at least 24 characters." >&2
+            exit 1
+          }
+
+      - name: Select OpenSSL 3
+        shell: bash
+        run: |
+          set -euo pipefail
+          OPENSSL_PREFIX="$(brew --prefix openssl@3 2>/dev/null || true)"
+          if [[ -z "$OPENSSL_PREFIX" || ! -x "$OPENSSL_PREFIX/bin/openssl" ]]; then
+            brew install openssl@3
+            OPENSSL_PREFIX="$(brew --prefix openssl@3)"
+          fi
+          echo "OPENSSL_BIN=$OPENSSL_PREFIX/bin/openssl" >> "$GITHUB_ENV"
+
+      - name: Create and test the password-protected PKCS12 identity
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+
+          PRIVATE_DIR="$RUNNER_TEMP/cove-signing-p12-private"
+          P12_DIR="$RUNNER_TEMP/cove-signing-p12-artifact"
+          CERTIFICATE_DER="$PRIVATE_DIR/distribution.cer"
+          CERTIFICATE_PEM="$PRIVATE_DIR/distribution.pem"
+          ENCRYPTED_KEY="$PRIVATE_DIR/private-key.pem.enc"
+          PRIVATE_KEY="$PRIVATE_DIR/private-key.pem"
+          P12_FILE="$P12_DIR/Cove-Apple-Distribution.p12"
+          TEMP_KEYCHAIN="$PRIVATE_DIR/cove-signing.keychain-db"
+          TEST_SOURCE="$PRIVATE_DIR/signing-test.c"
+          TEST_BINARY="$PRIVATE_DIR/signing-test"
+
+          cleanup() {
+            security delete-keychain "$TEMP_KEYCHAIN" >/dev/null 2>&1 || true
+            rm -rf "$PRIVATE_DIR"
+          }
+          trap cleanup EXIT
+
+          mkdir -p "$PRIVATE_DIR" "$P12_DIR"
+          chmod 700 "$PRIVATE_DIR" "$P12_DIR"
+
+          printf '%s' "$CERTIFICATE_CER_B64" | /usr/bin/base64 -D > "$CERTIFICATE_DER"
+          printf '%s' "$ENCRYPTED_PRIVATE_KEY_B64" | /usr/bin/base64 -D > "$ENCRYPTED_KEY"
+
+          "$OPENSSL_BIN" x509 \
+            -inform DER \
+            -in "$CERTIFICATE_DER" \
+            -out "$CERTIFICATE_PEM"
+          "$OPENSSL_BIN" x509 -in "$CERTIFICATE_PEM" -noout -checkend 0
+          "$OPENSSL_BIN" x509 -in "$CERTIFICATE_PEM" -noout -subject -nameopt RFC2253 \
+            | grep -q "OU=$EXPECTED_TEAM_ID" || {
+              echo "The Apple Distribution certificate belongs to a different team." >&2
+              exit 1
+            }
+
+          "$OPENSSL_BIN" enc \
+            -d \
+            -aes-256-cbc \
+            -pbkdf2 \
+            -iter 600000 \
+            -md sha256 \
+            -in "$ENCRYPTED_KEY" \
+            -out "$PRIVATE_KEY" \
+            -pass env:SIGNING_PASSWORD
+          chmod 600 "$PRIVATE_KEY"
+          "$OPENSSL_BIN" pkey -in "$PRIVATE_KEY" -noout -check >/dev/null
+
+          CERTIFICATE_PUBLIC_KEY_SHA256="$(
+            "$OPENSSL_BIN" x509 -in "$CERTIFICATE_PEM" -pubkey -noout \
+              | "$OPENSSL_BIN" pkey -pubin -outform DER 2>/dev/null \
+              | "$OPENSSL_BIN" dgst -sha256 \
+              | sed 's/^.*= //'
+          )"
+          PRIVATE_PUBLIC_KEY_SHA256="$(
+            "$OPENSSL_BIN" pkey -in "$PRIVATE_KEY" -pubout -outform DER 2>/dev/null \
+              | "$OPENSSL_BIN" dgst -sha256 \
+              | sed 's/^.*= //'
+          )"
+          [[ "$CERTIFICATE_PUBLIC_KEY_SHA256" == "$PRIVATE_PUBLIC_KEY_SHA256" ]] || {
+            echo "The Apple certificate does not match the preserved private key." >&2
+            exit 1
+          }
+
+          "$OPENSSL_BIN" pkcs12 \
+            -export \
+            -inkey "$PRIVATE_KEY" \
+            -in "$CERTIFICATE_PEM" \
+            -name "Cove Apple Distribution" \
+            -keypbe AES-256-CBC \
+            -certpbe AES-256-CBC \
+            -macalg sha256 \
+            -iter 100000 \
+            -out "$P12_FILE" \
+            -passout env:SIGNING_PASSWORD
+          chmod 600 "$P12_FILE"
+
+          "$OPENSSL_BIN" pkcs12 \
+            -in "$P12_FILE" \
+            -passin env:SIGNING_PASSWORD \
+            -noout \
+            -info 2>&1 \
+            | grep -q "MAC: sha256" || {
+              echo "The PKCS12 integrity check failed." >&2
+              exit 1
+            }
+
+          TEMP_KEYCHAIN_PASSWORD="$("$OPENSSL_BIN" rand -base64 48 | tr -d '\n')"
+          security create-keychain -p "$TEMP_KEYCHAIN_PASSWORD" "$TEMP_KEYCHAIN"
+          security unlock-keychain -p "$TEMP_KEYCHAIN_PASSWORD" "$TEMP_KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$TEMP_KEYCHAIN"
+          security import "$P12_FILE" \
+            -k "$TEMP_KEYCHAIN" \
+            -P "$SIGNING_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security >/dev/null
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s \
+            -k "$TEMP_KEYCHAIN_PASSWORD" \
+            "$TEMP_KEYCHAIN" >/dev/null
+
+          SIGNING_IDENTITY_SHA1="$(
+            security find-identity -v -p codesigning "$TEMP_KEYCHAIN" \
+              | awk '/Apple Distribution/ { print $2; exit }'
+          )"
+          [[ -n "$SIGNING_IDENTITY_SHA1" ]] || {
+            echo "macOS could not import an Apple Distribution signing identity from the PKCS12 file." >&2
+            exit 1
+          }
+
+          printf '%s\n' 'int main(void) { return 0; }' > "$TEST_SOURCE"
+          clang "$TEST_SOURCE" -o "$TEST_BINARY"
+          codesign \
+            --force \
+            --sign "$SIGNING_IDENTITY_SHA1" \
+            --keychain "$TEMP_KEYCHAIN" \
+            --timestamp=none \
+            "$TEST_BINARY"
+          codesign --verify --strict "$TEST_BINARY"
+
+          CERTIFICATE_SHA256="$(
+            "$OPENSSL_BIN" x509 -in "$CERTIFICATE_PEM" -outform DER \
+              | "$OPENSSL_BIN" dgst -sha256 \
+              | sed 's/^.*= //'
+          )"
+          echo "certificate_sha256=$CERTIFICATE_SHA256" >> "$GITHUB_OUTPUT"
+
+      - name: Upload password-protected signing identity
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cove-Apple-Distribution-P12
+          path: ${{ runner.temp }}/cove-signing-p12-artifact/Cove-Apple-Distribution.p12
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Remove runner copy of the signing bundle
+        if: always()
+        shell: bash
+        run: rm -rf "$RUNNER_TEMP/cove-signing-p12-artifact"
+
+      - name: Record result
+        if: success()
+        shell: bash
+        run: |
+          {
+            echo "### Apple Distribution PKCS12 created"
+            echo
+            echo "- The certificate matched the preserved private key."
+            echo "- macOS imported the identity and successfully signed a test Mach-O binary."
+            echo "- Certificate SHA-256: \`${{ steps.package.outputs.certificate_sha256 }}\`"
+            echo "- The password-protected artifact expires after one day."
+          } >> "$GITHUB_STEP_SUMMARY"
