@@ -10,13 +10,13 @@ struct APIErrorEnvelope: Decodable {
 
 enum APIError: LocalizedError {
     case invalidResponse
-    case server(status: Int, message: String)
+    case server(status: Int, code: String?, message: String)
     case configuration(String)
 
     var errorDescription: String? {
         switch self {
         case .invalidResponse: "The server returned an unreadable response."
-        case let .server(_, message): message
+        case let .server(_, _, message): message
         case let .configuration(message): message
         }
     }
@@ -79,7 +79,11 @@ actor APIClient {
                     continue
                 }
                 let envelope = try? decoder.decode(APIErrorEnvelope.self, from: data)
-                throw APIError.server(status: http.statusCode, message: envelope?.error.message ?? "Request failed.")
+                throw APIError.server(
+                    status: http.statusCode,
+                    code: envelope?.error.code,
+                    message: envelope?.error.message ?? "Request failed."
+                )
             } catch {
                 if Task.isCancelled { throw CancellationError() }
                 if attempt == 0, mayRetry, error is URLError {
@@ -112,7 +116,11 @@ actor APIClient {
         guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
         guard (200..<300).contains(http.statusCode) else {
             let envelope = try? decoder.decode(APIErrorEnvelope.self, from: data)
-            throw APIError.server(status: http.statusCode, message: envelope?.error.message ?? "Request failed.")
+            throw APIError.server(
+                status: http.statusCode,
+                code: envelope?.error.code,
+                message: envelope?.error.message ?? "Request failed."
+            )
         }
     }
 }

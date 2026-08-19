@@ -19,7 +19,7 @@ struct PantryView: View {
                             .foregroundStyle(WeektableTheme.brand)
                         Text("Your pantry is ready to fill")
                             .font(.coveCardTitle)
-                        Text("Mark grocery items as already on hand and they’ll appear here while Cove recalculates your basket.")
+                        Text("In Groceries, mark an item On hand to move it here and remove it from the estimated basket.")
                             .font(.subheadline)
                             .foregroundStyle(WeektableTheme.secondaryInk)
                             .multilineTextAlignment(.center)
@@ -55,7 +55,7 @@ struct PantryView: View {
                     .tracking(0.8)
                 Text("\(ownedItems.count) items on hand")
                     .font(.system(size: 24, weight: .semibold, design: .serif))
-                Text("Cove removes these from your grocery total automatically.")
+                Text("These are already at home, so they stay out of your estimated basket.")
                     .font(.subheadline)
                     .foregroundStyle(WeektableTheme.secondaryInk)
             }
@@ -91,12 +91,18 @@ private struct PantryRow: View {
                 Text(item.packageDisplay)
                     .font(.caption)
                     .foregroundStyle(WeektableTheme.secondaryInk)
+                Label("On hand", systemImage: "checkmark.circle.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(WeektableTheme.success)
             }
             Spacer()
-            Button("Need it") { remove() }
+            Button("Add to groceries", systemImage: "cart.badge.plus") { remove() }
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(WeektableTheme.terracotta)
-                .frame(minWidth: 64, minHeight: 44)
+                .labelStyle(.titleAndIcon)
+                .frame(minHeight: 44)
+                .accessibilityLabel("Add \(item.displayName) to groceries")
+                .accessibilityHint("Marks this item as needing to be purchased")
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)

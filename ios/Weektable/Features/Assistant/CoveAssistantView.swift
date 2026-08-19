@@ -131,9 +131,9 @@ struct CoveAssistantView: View {
             }) {
                 if appModel.groceryState.ownedItemIDs.contains(item.id) {
                     appModel.toggleOwned(item.id)
-                    return CoveMessage(role: .cove, text: "Got it — I removed eggs from your pantry and added them back to this week’s grocery total.", action: .groceries)
+                    return CoveMessage(role: .cove, text: "Got it — eggs are no longer marked On hand, so they’re back in Groceries and included in the estimated basket.", action: .groceries)
                 }
-                return CoveMessage(role: .cove, text: "Eggs are already on your grocery list, so your basket is up to date.", action: .groceries)
+                return CoveMessage(role: .cove, text: "Eggs are already in Groceries, so your estimated basket is up to date.", action: .groceries)
             }
             return CoveMessage(role: .cove, text: "I don’t see eggs in this week’s plan yet. Add them during your next weekly plan and I’ll track them for you.", action: .planner)
         }
@@ -143,14 +143,15 @@ struct CoveAssistantView: View {
                 ? appModel.plan?.meals.first(where: { $0.day.lowercased().contains("wednesday") })
                 : appModel.plan?.meals.first
             if let meal {
-                return CoveMessage(role: .cove, text: "Absolutely. I can look for a quicker swap for \(meal.title) and keep the basket recalculation intact.", action: .swap(meal.id))
+                return CoveMessage(role: .cove, text: "Absolutely. I can look for a quicker swap for \(meal.title) and update the estimated basket automatically.", action: .swap(meal.id))
             }
             return CoveMessage(role: .cove, text: "Let’s build your first week, then I can swap any dinner without losing your budget or grocery calculations.", action: .planner)
         }
 
         if query.contains("spend less") || query.contains("cheaper") || query.contains("budget") {
             if let plan = appModel.plan {
-                return CoveMessage(role: .cove, text: "This week is currently \(appModel.groceryTotalCents.currency) against your \(plan.budgetCents.currency) budget. We can rebuild with a lower target while keeping your preferences.", action: .planner)
+                let remaining = max(plan.budgetCents - appModel.groceryTotalCents, 0)
+                return CoveMessage(role: .cove, text: "Your estimated basket is \(appModel.groceryTotalCents.currency) of \(plan.budgetCents.currency), with \(remaining.currency) remaining. We can rebuild with a lower target while keeping your preferences.", action: .planner)
             }
             return CoveMessage(role: .cove, text: "Tell me your weekly budget in the planner and I’ll build around it.", action: .planner)
         }

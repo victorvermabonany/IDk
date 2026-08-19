@@ -23,7 +23,7 @@ struct RecipeDetailView: View {
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                         RecipeStat(value: "\(meal.totalMinutes)m", label: "Total time", symbol: "clock")
                         RecipeStat(value: "\(meal.servings)", label: "Servings", symbol: "person.2")
-                        RecipeStat(value: "~\(estimatedMealCost.currency)", label: "Basket share", symbol: "basket")
+                        RecipeStat(value: "~\(estimatedMealCost.currency)", label: "Estimated basket share", symbol: "basket")
                         RecipeStat(value: "\(meal.proteinGrams)g", label: "Protein", symbol: "bolt")
                     }
 

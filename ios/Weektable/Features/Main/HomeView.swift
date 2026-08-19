@@ -105,7 +105,7 @@ struct HomeView: View {
                     Text("\(plan.meals.count) dinners planned")
                         .font(.system(size: 21, weight: .semibold, design: .serif))
                         .fixedSize(horizontal: false, vertical: true)
-                    Text("\(appModel.groceryTotalCents.currency) of \(plan.budgetCents.currency) budget")
+                    Text("Estimated basket · \(appModel.groceryTotalCents.currency) of \(plan.budgetCents.currency)")
                         .font(.subheadline)
                         .foregroundStyle(WeektableTheme.secondaryInk)
                 }
@@ -123,8 +123,8 @@ struct HomeView: View {
             VStack(spacing: 10) {
                 ProgressView(value: Double(appModel.groceryTotalCents), total: Double(max(plan.budgetCents, 1)))
                     .tint(WeektableTheme.brand)
-                    .accessibilityLabel("Weekly grocery budget")
-                    .accessibilityValue("\(appModel.groceryTotalCents.currency) of \(plan.budgetCents.currency)")
+                    .accessibilityLabel("Estimated basket")
+                    .accessibilityValue("\(appModel.groceryTotalCents.currency) of \(plan.budgetCents.currency), \(budgetBalance(for: plan))")
 
                 Button { appModel.selectWeek() } label: {
                     HStack {
@@ -196,7 +196,7 @@ struct HomeView: View {
         Button {
             if plan == nil { appModel.showPlanner() } else { appModel.selectGroceries() }
         } label: {
-            DashboardTile(title: "Groceries", subtitle: plan == nil ? "Build a week first" : "\(itemsLeft) items left", detail: plan.map { _ in "\(appModel.groceryTotalCents.currency) est." }, imageName: "cove-grocery-bag")
+            DashboardTile(title: "Groceries", subtitle: plan == nil ? "Build a week first" : "\(itemsLeft) items left", detail: plan.map { _ in "Estimated basket · \(appModel.groceryTotalCents.currency)" }, imageName: "cove-grocery-bag")
         }
         .buttonStyle(.plain)
     }
@@ -232,6 +232,13 @@ struct HomeView: View {
             .coveCard(radius: 20)
         }
         .buttonStyle(.plain)
+    }
+
+    private func budgetBalance(for plan: MealPlan) -> String {
+        if appModel.groceryTotalCents <= plan.budgetCents {
+            return "\((plan.budgetCents - appModel.groceryTotalCents).currency) remaining"
+        }
+        return "\((appModel.groceryTotalCents - plan.budgetCents).currency) over budget"
     }
 
     private var greeting: String {

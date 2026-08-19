@@ -20,7 +20,7 @@ enum PremiumFeature: String, Identifiable, Codable {
         switch self {
         case .general: "Plan every week with Pro"
         case .anotherWeek: "Plan every week"
-        case .additionalSwap: "Keep your basket flexible"
+        case .additionalSwap: "Keep your week flexible"
         }
     }
 
@@ -28,7 +28,7 @@ enum PremiumFeature: String, Identifiable, Codable {
         switch self {
         case .general: "Unlimited weekly planning, meal swaps, and saved preferences in one native subscription."
         case .anotherWeek: "Your first complete week is yours. Pro unlocks unlimited new weeks."
-        case .additionalSwap: "Your first swap is included. Pro unlocks unlimited swaps with automatic basket repricing."
+        case .additionalSwap: "Your first swap is included. Pro unlocks unlimited swaps with automatic estimated-basket updates."
         }
     }
 }

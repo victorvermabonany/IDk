@@ -44,7 +44,7 @@ struct ProfileView: View {
 
             Section("About") {
                 NavigationLink {
-                    ProfileTextView(title: "Price and nutrition sources", symbol: "info.circle", text: "Cove identifies whether basket prices are provider-listed, Cove estimates, or development fixtures. Always check current shelf prices and labels. Nutrition values are estimates, not medical advice.")
+                    ProfileTextView(title: "Price and nutrition sources", symbol: "info.circle", text: "Cove labels each estimated basket as provider-listed, estimated, or based on development data. Always check current shelf prices and labels. Nutrition values are estimates, not medical advice.")
                 } label: { Label("Price and nutrition sources", systemImage: "info.circle") }
                 NavigationLink {
                     ProfileTextView(title: "Privacy", symbol: "hand.raised", text: "Your latest planner answers, cached plan, and grocery progress are stored on this iPhone. Cove does not require an account for the core planning flow.")

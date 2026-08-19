@@ -10,7 +10,7 @@ struct MealSwapSheet: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 18) {
                     VStack(alignment: .leading, spacing: 8) {
-                        SectionLabel(text: "Cove recalculates the full basket")
+                        SectionLabel(text: "Cove updates your estimated basket")
                         Text("Find another dinner")
                             .font(.coveTitle)
                             .accessibilityAddTraits(.isHeader)
@@ -25,9 +25,9 @@ struct MealSwapSheet: View {
                             ProgressView()
                                 .controlSize(.large)
                                 .tint(WeektableTheme.brand)
-                            Text("Repricing complete packages…")
+                            Text("Updating your estimated basket…")
                                 .font(.headline)
-                            Text("Cove is checking ingredient reuse and your full weekly basket.")
+                            Text("Cove is checking ingredient reuse and the full week’s package prices.")
                                 .font(.subheadline)
                                 .foregroundStyle(WeektableTheme.secondaryInk)
                                 .multilineTextAlignment(.center)
@@ -101,7 +101,7 @@ struct MealSwapSheet: View {
 
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("New weekly basket")
+                        Text("New estimated basket")
                             .font(.caption)
                             .foregroundStyle(WeektableTheme.secondaryInk)
                         Text(preview.resultingTotalCents.currency)
@@ -120,7 +120,7 @@ struct MealSwapSheet: View {
                     HStack {
                         if appModel.applyingSwapPreviewID == preview.id {
                             ProgressView().tint(.white)
-                            Text("Updating basket…")
+                            Text("Updating estimated basket…")
                         } else {
                             Text("Choose this dinner")
                             Spacer()
@@ -137,7 +137,7 @@ struct MealSwapSheet: View {
                         .foregroundStyle(WeektableTheme.error)
                         .fixedSize(horizontal: false, vertical: true)
                 } else {
-                    Text("Uses \(preview.reusedIngredientCount) ingredients already represented in your basket.")
+                    Text("Uses \(preview.reusedIngredientCount) ingredients already included elsewhere in the week.")
                         .font(.footnote)
                         .foregroundStyle(WeektableTheme.secondaryInk)
                 }

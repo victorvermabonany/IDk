@@ -47,7 +47,7 @@ struct SettingsView: View {
                     SettingsTextView(
                         title: "Prices and nutrition",
                         symbol: "info.circle",
-                        text: "Cove identifies whether basket prices are provider-listed, Cove estimates, or development fixtures and records their observation time. Check current shelf prices and package labels. Nutrition values are estimates, not medical advice."
+                        text: "Cove labels each estimated basket as provider-listed, estimated, or based on development data and records when the prices were observed. Check current shelf prices and package labels. Nutrition values are estimates, not medical advice."
                     )
                 } label: {
                     Label("Prices and nutrition", systemImage: "info.circle")

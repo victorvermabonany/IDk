@@ -22,7 +22,7 @@ struct WeekHomeView: View {
                         WeekMealRow(
                             meal: meal,
                             estimatedCostCents: estimatedCost(for: meal, in: plan),
-                            isTonight: index == 0,
+                            dayLabel: WeekdayLabel.label(for: meal.day, index: index),
                             onSwap: { appModel.openSwap(for: meal) }
                         )
                     }
@@ -76,17 +76,17 @@ struct WeekHomeView: View {
         VStack(spacing: 7) {
             HStack(alignment: .lastTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Current grocery spend")
+                    Text("Estimated basket")
                         .font(.caption2)
                         .foregroundStyle(WeektableTheme.secondaryInk)
-                    Text(appModel.groceryTotalCents.currency)
+                    Text("\(appModel.groceryTotalCents.currency) of \(plan.budgetCents.currency)")
                         .font(.system(size: 22, weight: .semibold, design: .serif))
                         .monospacedDigit()
                 }
                 Spacer()
-                Text("\(max(plan.budgetCents - appModel.groceryTotalCents, 0).currency) left")
+                Text(budgetBalance(for: plan))
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(WeektableTheme.brand)
+                    .foregroundStyle(appModel.groceryTotalCents <= plan.budgetCents ? WeektableTheme.brand : WeektableTheme.error)
             }
             ProgressView(value: Double(appModel.groceryTotalCents), total: Double(max(plan.budgetCents, 1)))
                 .tint(WeektableTheme.brand)
@@ -94,7 +94,14 @@ struct WeekHomeView: View {
         .padding(10)
         .background(WeektableTheme.surface.opacity(0.7), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Current grocery spend \(appModel.groceryTotalCents.currency) of \(plan.budgetCents.currency)")
+        .accessibilityLabel("Estimated basket \(appModel.groceryTotalCents.currency) of \(plan.budgetCents.currency), \(budgetBalance(for: plan))")
+    }
+
+    private func budgetBalance(for plan: MealPlan) -> String {
+        if appModel.groceryTotalCents <= plan.budgetCents {
+            return "\((plan.budgetCents - appModel.groceryTotalCents).currency) remaining"
+        }
+        return "\((appModel.groceryTotalCents - plan.budgetCents).currency) over budget"
     }
 
     private func estimatedCost(for meal: Meal, in plan: MealPlan) -> Int {
@@ -114,16 +121,16 @@ private struct WeekDateStrip: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            ForEach(Array(dates.enumerated()), id: \.offset) { index, date in
+            ForEach(dates, id: \.self) { date in
                 VStack(spacing: 4) {
                     Text(date.formatted(.dateTime.weekday(.narrow)))
                         .font(.caption.weight(.semibold))
                     Text(date.formatted(.dateTime.day()))
                         .font(.caption)
                 }
-                .foregroundStyle(index == 0 ? .white : WeektableTheme.ink)
+                .foregroundStyle(Calendar.current.isDateInToday(date) ? .white : WeektableTheme.ink)
                 .frame(maxWidth: .infinity, minHeight: 44)
-                .background(index == 0 ? WeektableTheme.terracotta : Color.clear, in: Capsule())
+                .background(Calendar.current.isDateInToday(date) ? WeektableTheme.terracotta : Color.clear, in: Capsule())
             }
         }
         .padding(6)
@@ -136,7 +143,7 @@ private struct WeekDateStrip: View {
 private struct WeekMealRow: View {
     let meal: Meal
     let estimatedCostCents: Int
-    let isTonight: Bool
+    let dayLabel: String
     let onSwap: () -> Void
 
     var body: some View {
@@ -147,12 +154,12 @@ private struct WeekMealRow: View {
                         .frame(width: 88, height: 86)
                         .clipped()
                         .overlay(alignment: .topLeading) {
-                            Text(isTonight ? "TODAY" : shortDay)
+                            Text(dayLabel)
                                 .font(.caption2.weight(.black))
                                 .foregroundStyle(WeektableTheme.ink)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 5)
-                                .background((isTonight ? WeektableTheme.gold : WeektableTheme.raised).opacity(0.94), in: Capsule())
+                                .background((dayLabel == "TODAY" ? WeektableTheme.gold : WeektableTheme.raised).opacity(0.94), in: Capsule())
                                 .padding(6)
                         }
                         .clipShape(RoundedRectangle(cornerRadius: 17, style: .continuous))
@@ -177,23 +184,43 @@ private struct WeekMealRow: View {
                     .foregroundStyle(WeektableTheme.terracotta)
                     .monospacedDigit()
                 Button(action: onSwap) {
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                        .font(.subheadline.weight(.semibold))
+                    Label("Swap", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.caption.weight(.semibold))
                         .foregroundStyle(WeektableTheme.brand)
-                        .frame(width: 38, height: 38)
-                        .background(WeektableTheme.selected, in: Circle())
+                        .padding(.horizontal, 9)
+                        .frame(minHeight: 38)
+                        .background(WeektableTheme.selected, in: Capsule())
                 }
                 .frame(minWidth: 44, minHeight: 44)
                 .accessibilityLabel("Swap \(meal.title)")
+                .accessibilityHint("Shows alternative dinners")
             }
         }
         .padding(6)
         .coveCard(radius: 20)
         .accessibilityElement(children: .contain)
     }
+}
 
-    private var shortDay: String {
-        String(meal.day.prefix(3)).uppercased()
+enum WeekdayLabel {
+    private static let knownDays: [String: String] = [
+        "sun": "SUN", "mon": "MON", "tue": "TUE", "wed": "WED",
+        "thu": "THU", "fri": "FRI", "sat": "SAT"
+    ]
+    private static let fallbackDays = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]
+
+    static func label(for mealDay: String, index: Int, now: Date = .now, calendar: Calendar = .current) -> String {
+        if index == 0 { return "TODAY" }
+
+        let normalized = mealDay.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if normalized.count >= 3 {
+            let prefix = String(normalized.prefix(3))
+            if let known = knownDays[prefix] { return known }
+        }
+
+        let date = calendar.date(byAdding: .day, value: index, to: now) ?? now
+        let weekday = calendar.component(.weekday, from: date)
+        return fallbackDays[max(0, min(weekday - 1, fallbackDays.count - 1))]
     }
 }
 
@@ -210,12 +237,12 @@ struct PriceSourceNotice: View {
     }
 
     private var message: String {
-        if plan.pricingProvenance?.pricingMode == "live" {
+        if plan.pricingProvenance?.pricingMode == "live" || plan.priceKind == .live || plan.priceKind == .feed {
             return "\(plan.pricingProvenance?.providerName ?? "Provider") listed prices for \(plan.pricingProvenance?.storeName ?? plan.store.name). Verify current shelf prices and labels."
         }
         if plan.pricingProvenance?.pricingMode == "fixture" || plan.priceKind == .fixture {
-            return "Development fixture prices. Not current store pricing."
+            return "Estimated basket · Development prices, not current retailer prices."
         }
-        return "Estimated basket · Cove complete-package estimates. Prices may differ at your store."
+        return "Estimated basket · Package-price estimates, not current retailer prices."
     }
 }

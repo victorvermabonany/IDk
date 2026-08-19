@@ -34,6 +34,11 @@ enum StoreSearchState: Equatable {
     case failed
 }
 
+enum PlannerEntryPoint: Equatable {
+    case store
+    case food
+}
+
 @MainActor
 @Observable
 final class AppModel {
@@ -44,7 +49,8 @@ final class AppModel {
     var groceryState = GroceryState()
     var generationStage: GenerationStage = .planning
     var generationProgress = 0.05
-    var generationError: String?
+    var generationFailure: GenerationFailure?
+    var plannerEntryPoint: PlannerEntryPoint = .store
     var pendingGenerationJob: GenerationJob?
     var swapMeal: Meal?
     var swapPreviews: [SwapPreview] = []
@@ -98,6 +104,7 @@ final class AppModel {
 
     func showPlanner() {
         try? persistence.save(true, key: PersistenceKey.hasCompletedWelcome)
+        plannerEntryPoint = .store
         rootFlow = .planner
         Task { await analytics.track(.plannerStarted) }
         Haptics.selection()
@@ -145,7 +152,7 @@ final class AppModel {
         guard generationTask == nil else { return }
         generationTask?.cancel()
         generationTask = nil
-        generationError = nil
+        generationFailure = nil
         generationStage = .planning
         generationProgress = 0.05
         rootFlow = .generation
@@ -164,7 +171,7 @@ final class AppModel {
                 try await observeGeneration(job)
             } catch {
                 clearTerminalGenerationJob(for: error)
-                generationError = userFacingMessage(for: error)
+                generationFailure = GenerationFailure.userFacing(for: error, request: request)
                 await analytics.track(.generationFailed)
                 Haptics.warning()
             }
@@ -179,7 +186,7 @@ final class AppModel {
                 try await observeGeneration(job)
             } catch {
                 clearTerminalGenerationJob(for: error)
-                generationError = userFacingMessage(for: error)
+                generationFailure = GenerationFailure.userFacing(for: error, request: plannerDraft)
                 Haptics.warning()
             }
         }
@@ -188,17 +195,30 @@ final class AppModel {
     func retryGeneration() {
         generationTask?.cancel()
         generationTask = nil
-        generationError = nil
+        generationFailure = nil
         if pendingGenerationJob != nil { resumeGenerationIfNeeded() }
         else { beginGeneration() }
     }
 
     func cancelGeneration() {
+        returnToPlanner(at: .store)
+    }
+
+    func reviewGenerationBudget() {
+        returnToPlanner(at: .store)
+    }
+
+    func reviewGenerationPreferences() {
+        returnToPlanner(at: .food)
+    }
+
+    private func returnToPlanner(at entryPoint: PlannerEntryPoint) {
         generationTask?.cancel()
         generationTask = nil
         pendingGenerationJob = nil
         try? persistence.remove(key: PersistenceKey.generationJob)
         try? persistence.remove(key: PersistenceKey.generationSubmissionKey)
+        plannerEntryPoint = entryPoint
         rootFlow = .planner
     }
 
@@ -289,9 +309,9 @@ final class AppModel {
                 self.swapMeal = nil
                 await analytics.track(.swapCompleted)
                 Haptics.success()
-                UIAccessibility.post(notification: .announcement, argument: "Meal swapped. New basket total \(updated.estimatedTotalCents.currency).")
+                UIAccessibility.post(notification: .announcement, argument: "Meal swapped. Estimated basket updated to \(updated.estimatedTotalCents.currency).")
             } catch {
-                swapErrorMessage = "We couldn’t update the basket. Your original meal is unchanged. Try again."
+                swapErrorMessage = "We couldn’t update the estimated basket. Your original meal is unchanged. Try again."
                 Haptics.warning()
             }
             isApplyingSwap = false
@@ -313,6 +333,7 @@ final class AppModel {
         paywallTrigger = nil
         weekNavigationPath.removeAll()
         selectedTab = .home
+        plannerEntryPoint = .store
         rootFlow = .planner
     }
 
@@ -410,7 +431,7 @@ final class AppModel {
                 self.plan = updatedPlan
                 try? persistence.save(updatedPlan, key: PersistenceKey.cachedPlan)
                 if announceBasket {
-                    UIAccessibility.post(notification: .announcement, argument: "Basket total updated to \(groceryTotalCents.currency)")
+                    UIAccessibility.post(notification: .announcement, argument: "Estimated basket updated to \(groceryTotalCents.currency)")
                 }
             } catch {
                 guard groceryState == stateToSync else { return }
@@ -446,7 +467,7 @@ final class AppModel {
                 return message
             case .invalidResponse:
                 return "Cove received an incomplete response. Your answers are saved—please try again."
-            case .server(let status, _):
+            case .server(let status, _, _):
                 if status == 409 { return "These choices could not produce a safe week within the budget. Review your answers and try again." }
                 if status == 422 { return "One or more choices need attention. Review your planner answers and try again." }
                 if status == 429 { return "Cove is receiving many requests. Your answers are saved—wait a moment and try again." }
@@ -462,8 +483,9 @@ final class AppModel {
 
     private func clearTerminalGenerationJob(for error: Error) {
         guard let apiError = error as? APIError,
-              case let .server(status, _) = apiError,
-              status == 404 || status == 422 || status == 502 else { return }
+              case let .server(status, code, _) = apiError else { return }
+        let terminalCodes = ["BUDGET_TOO_LOW", "CONSTRAINT_CONFLICT", "UNPRICED_BASKET", "PROVIDER_UNAVAILABLE", "MODEL_FAILURE"]
+        guard status == 404 || terminalCodes.contains(code?.uppercased() ?? "") else { return }
         pendingGenerationJob = nil
         try? persistence.remove(key: PersistenceKey.generationJob)
         try? persistence.remove(key: PersistenceKey.generationSubmissionKey)

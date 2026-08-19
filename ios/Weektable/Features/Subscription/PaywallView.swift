@@ -104,7 +104,7 @@ struct PaywallView: View {
         VStack(alignment: .leading, spacing: 0) {
             BenefitRow(symbol: "calendar.badge.plus", text: "Unlimited weekly plans", color: WeektableTheme.terracotta)
             Divider().padding(.leading, 48)
-            BenefitRow(symbol: "arrow.triangle.2.circlepath", text: "Unlimited swaps with basket repricing", color: WeektableTheme.sky)
+            BenefitRow(symbol: "arrow.triangle.2.circlepath", text: "Unlimited swaps with estimated-basket updates", color: WeektableTheme.sky)
             Divider().padding(.leading, 48)
             BenefitRow(symbol: "slider.horizontal.3", text: "Saved preferences and advanced replanning", color: WeektableTheme.sage)
         }

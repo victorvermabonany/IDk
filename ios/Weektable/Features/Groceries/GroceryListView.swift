@@ -50,7 +50,7 @@ struct GroceryListView: View {
                                     .listRowBackground(Color.clear)
                                     .listRowSeparator(.hidden)
                                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                        Button(isOwned(item) ? "Add to basket" : "Already have") {
+                                        Button(isOwned(item) ? "Add to groceries" : "Mark as on hand") {
                                             appModel.toggleOwned(item.id)
                                         }
                                         .tint(WeektableTheme.success)
@@ -127,7 +127,7 @@ struct GroceryListView: View {
             guard !items.isEmpty else { return [] }
             return [department.rawValue.uppercased()] + items.map { "• \($0.productName) · \($0.packageCount) × \($0.packageDisplay)" }
         }
-        return (["Cove grocery list"] + lines + ["Planning total: \(appModel.groceryTotalCents.currency)", "Verify current prices and allergen labels."]).joined(separator: "\n")
+        return (["Cove grocery list"] + lines + ["Estimated basket: \(appModel.groceryTotalCents.currency) of \(plan.budgetCents.currency)", "Verify current prices and allergen labels."]).joined(separator: "\n")
     }
 }
 
@@ -140,7 +140,7 @@ private struct GrocerySummaryCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 17) {
             HStack {
-                Label("Shopping list", systemImage: "basket.fill")
+                Label("Estimated basket", systemImage: "basket.fill")
                     .font(.caption.weight(.black))
                     .textCase(.uppercase)
                     .tracking(0.8)
@@ -162,11 +162,11 @@ private struct GrocerySummaryCard: View {
             ProgressView(value: Double(totalCents), total: Double(max(budgetCents, 1)))
                 .tint(.white)
                 .scaleEffect(x: 1, y: 1.3)
-                .accessibilityLabel("Grocery budget used")
+                .accessibilityLabel("Estimated basket budget")
                 .accessibilityValue("\(totalCents.currency) of \(budgetCents.currency)")
 
             HStack {
-                Label("\((budgetCents - totalCents).currency) left", systemImage: "checkmark.circle.fill")
+                Label(balanceText, systemImage: totalCents <= budgetCents ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                 Spacer()
                 Text("\(dinnerCount) dinners")
             }
@@ -177,6 +177,11 @@ private struct GrocerySummaryCard: View {
         .background(WeektableTheme.brandDeep, in: RoundedRectangle(cornerRadius: WeektableTheme.heroRadius, style: .continuous))
         .shadow(color: WeektableTheme.brandDeep.opacity(0.18), radius: 16, y: 8)
         .accessibilityElement(children: .combine)
+    }
+
+    private var balanceText: String {
+        if totalCents <= budgetCents { return "\((budgetCents - totalCents).currency) remaining" }
+        return "\((totalCents - budgetCents).currency) over budget"
     }
 }
 
@@ -227,11 +232,11 @@ private struct GroceryRow: View {
             .accessibilityHint("Shows the dinners that use this item")
 
             Menu {
-                Button(isOwned ? "Add to basket" : "Already have", action: onOwned)
+                Button(isOwned ? "Add to groceries" : "Mark as on hand", action: onOwned)
             } label: {
                 VStack(alignment: .trailing, spacing: 5) {
                     if isOwned {
-                        Text("Have it")
+                        Text("On hand")
                             .font(.caption.weight(.bold))
                             .foregroundStyle(WeektableTheme.success)
                             .padding(.horizontal, 8)
@@ -249,7 +254,7 @@ private struct GroceryRow: View {
                 }
                 .frame(minWidth: 62, minHeight: 44, alignment: .trailing)
             }
-            .accessibilityLabel("\(isOwned ? "Already have" : item.totalPriceCents.currency), options for \(item.productName)")
+            .accessibilityLabel("\(isOwned ? "On hand" : item.totalPriceCents.currency), options for \(item.productName)")
         }
         .padding(.vertical, 9)
         .padding(.horizontal, 10)
@@ -274,7 +279,7 @@ private struct GroceryRow: View {
     }
 
     private var statusActionLabel: String {
-        if isOwned { return "Add \(item.productName) back to basket" }
+        if isOwned { return "Add \(item.productName) to groceries" }
         return "\(isChecked ? "Uncheck" : "Check") \(item.productName)"
     }
 

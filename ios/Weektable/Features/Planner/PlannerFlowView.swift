@@ -26,6 +26,7 @@ struct PlannerFlowView: View {
 
     init(appModel: AppModel) {
         self.appModel = appModel
+        _step = State(initialValue: appModel.plannerEntryPoint == .food ? .food : .store)
         _draft = State(initialValue: appModel.plannerDraft)
     }
 
@@ -198,7 +199,7 @@ private struct StoreBudgetStep: View {
             PlannerStepHeader(
                 eyebrow: "First, the practical part",
                 title: "Where do you shop?",
-                description: "Cove uses your store and budget to plan complete packages—not imaginary ingredient prices."
+                description: "Cove plans with the package sizes and prices available for your selected store."
             )
 
             VStack(alignment: .leading, spacing: 14) {
@@ -247,7 +248,7 @@ private struct StoreBudgetStep: View {
             .padding(17)
             .coveCard()
 
-            Label("Cove plans with estimated complete-package prices. Check current shelf prices and labels.", systemImage: "info.circle")
+            Label("Your completed plan will show whether prices are provider-listed or estimated.", systemImage: "info.circle")
                 .font(.footnote)
                 .foregroundStyle(WeektableTheme.secondaryInk)
                 .fixedSize(horizontal: false, vertical: true)
@@ -323,7 +324,7 @@ private struct CurrencyBudgetField: View {
                     .font(.footnote)
                     .foregroundStyle(WeektableTheme.error)
             } else {
-                Text("This is your budget for all dinners, not your entire grocery trip.")
+                Text("This budget covers the dinners in this plan.")
                     .font(.footnote)
                     .foregroundStyle(WeektableTheme.secondaryInk)
             }
@@ -357,7 +358,7 @@ private struct HouseholdStep: View {
             PlannerStepHeader(
                 eyebrow: "Set the table",
                 title: "Who are we cooking for?",
-                description: "Cove scales every recipe and package calculation for the people eating."
+                description: "Cove adjusts recipes and package amounts for your household."
             )
 
             CoveCounter(
@@ -421,7 +422,7 @@ private struct FoodPreferencesStep: View {
             PlannerStepHeader(
                 eyebrow: "Make it yours",
                 title: "How do you want to eat?",
-                description: "Pick a general direction. Cove still balances the whole basket around your budget."
+                description: "Choose the style you want most. Cove will keep the week within your budget."
             )
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 11) {
@@ -479,7 +480,7 @@ private struct FoodPreferencesStep: View {
                         }
                     }
 
-                    Label("Allergies are hard constraints. Always verify package labels and cross-contact warnings.", systemImage: "checkmark.shield")
+                    Label("Cove always excludes selected allergies. Check package labels and cross-contact warnings.", systemImage: "checkmark.shield")
                         .font(.footnote)
                         .foregroundStyle(WeektableTheme.secondaryInk)
 
@@ -576,7 +577,7 @@ private struct PantryStep: View {
             PlannerStepHeader(
                 eyebrow: "Use what you have",
                 title: "What is already in your kitchen?",
-                description: "Cove keeps these ingredients in recipes and removes them from your grocery subtotal."
+                description: "Tell Cove what is on hand so those items stay out of your estimated basket."
             )
 
             VStack(alignment: .leading, spacing: 14) {
@@ -613,14 +614,14 @@ private struct PantryStep: View {
                         .background(WeektableTheme.brandDeep, in: RoundedRectangle(cornerRadius: WeektableTheme.controlRadius))
                         .disabled(newItem.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
-                Text("Optional. Cove excludes recognized pantry items from the grocery subtotal.")
+                Text("Optional. Recognized pantry items stay out of your estimated basket.")
                     .font(.footnote)
                     .foregroundStyle(WeektableTheme.secondaryInk)
             }
 
             if !draft.pantryItems.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
-                    SectionLabel(text: "Already have")
+                    SectionLabel(text: "On hand")
                     ForEach(draft.pantryItems.sorted(), id: \.self) { item in
                         HStack {
                             Label(item.capitalized, systemImage: "checkmark.circle.fill")

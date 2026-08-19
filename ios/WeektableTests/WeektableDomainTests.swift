@@ -65,6 +65,74 @@ final class WeektableDomainTests: XCTestCase {
         }
     }
 
+    func testBudgetFailureUsesPlannerContextWithoutExposingServerMessage() {
+        var request = PlannerRequest()
+        request.budgetCents = 2_500
+        request.householdSize = 4
+        request.dinnerCount = 5
+
+        let failure = GenerationFailure.userFacing(
+            for: APIError.server(status: 422, code: "BUDGET_TOO_LOW", message: "internal optimizer detail"),
+            request: request
+        )
+
+        XCTAssertEqual(failure.kind, .budget)
+        XCTAssertEqual(failure.title, "We couldn’t make this week fit.")
+        XCTAssertTrue(failure.message.contains("5 dinners for 4 people"))
+        XCTAssertTrue(failure.message.contains(request.budgetCents.currency))
+        XCTAssertFalse(failure.message.contains("internal optimizer detail"))
+    }
+
+    func testConstraintAndTemporaryFailuresUseSafeSpecificCopy() {
+        var request = PlannerRequest()
+        request.dinnerCount = 6
+        request.maxCookingMinutes = 20
+        request.allergies = ["milk"]
+
+        let conflict = GenerationFailure.userFacing(
+            for: APIError.server(status: 422, code: "CONSTRAINT_CONFLICT", message: "raw conflict"),
+            request: request
+        )
+        XCTAssertEqual(conflict.kind, .constraints)
+        XCTAssertTrue(conflict.message.contains("20-minute cooking limit"))
+        XCTAssertFalse(conflict.message.contains("raw conflict"))
+
+        let temporary = GenerationFailure.userFacing(
+            for: APIError.server(status: 502, code: "MODEL_FAILURE", message: "provider stack trace"),
+            request: request
+        )
+        XCTAssertEqual(temporary.kind, .temporary)
+        XCTAssertEqual(temporary.message, "Nothing you entered was lost. Please try again in a moment.")
+        XCTAssertFalse(temporary.message.contains("provider stack trace"))
+    }
+
+    func testWeekdayLabelsReplaceGenericDayValuesWithoutReorderingMeals() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let wednesday = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 8, day: 19)))
+
+        XCTAssertEqual(WeekdayLabel.label(for: "Monday", index: 0, now: wednesday, calendar: calendar), "TODAY")
+        XCTAssertEqual(WeekdayLabel.label(for: "Tuesday", index: 1, now: wednesday, calendar: calendar), "TUE")
+        XCTAssertEqual(WeekdayLabel.label(for: "Day 2", index: 1, now: wednesday, calendar: calendar), "THU")
+    }
+
+    func testReviewingGenerationFailurePreservesPlannerAnswersAndOpensRequestedStep() async {
+        await MainActor.run {
+            let persistence = PersistenceController(inMemory: true)
+            let model = AppModel(repository: DemoPlanRepository(), persistence: persistence, subscriptions: SubscriptionService())
+            var request = PlannerRequest()
+            request.budgetCents = 4_500
+            request.allergies = ["milk"]
+            model.updateDraft(request)
+
+            model.reviewGenerationPreferences()
+
+            XCTAssertEqual(model.rootFlow, .planner)
+            XCTAssertEqual(model.plannerEntryPoint, .food)
+            XCTAssertEqual(model.plannerDraft, request)
+        }
+    }
+
     func testGenerationStagesAreOrderedAndResumableByJobID() async throws {
         let repository = DemoPlanRepository()
         let job = try await repository.createPlan(request: PlannerRequest(), idempotencyKey: "test")

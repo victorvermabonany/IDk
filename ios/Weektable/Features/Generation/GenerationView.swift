@@ -15,18 +15,18 @@ struct GenerationView: View {
 
                     VStack(alignment: .leading, spacing: 9) {
                         SectionLabel(text: "Building your week")
-                        Text(appModel.generationError == nil ? appModel.generationStage.rawValue : "Your answers are safe")
+                        Text(appModel.generationFailure?.title ?? appModel.generationStage.rawValue)
                             .font(.coveTitle)
                             .foregroundStyle(WeektableTheme.ink)
                             .contentTransition(.numericText())
                             .accessibilityAddTraits(.isHeader)
-                        Text(appModel.generationError ?? "Cove is matching meals, complete packages, and your budget.")
+                        Text(appModel.generationFailure?.message ?? "Cove is matching meals, package prices, and your budget.")
                             .font(.body)
                             .foregroundStyle(WeektableTheme.secondaryInk)
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
-                    if appModel.generationError == nil {
+                    if appModel.generationFailure == nil {
                         ProgressView(value: appModel.generationProgress)
                             .tint(WeektableTheme.brand)
                             .scaleEffect(x: 1, y: 1.5)
@@ -53,14 +53,10 @@ struct GenerationView: View {
                         .padding(.horizontal, 16)
                         .coveCard()
                     } else {
-                        Button("Try again") { appModel.retryGeneration() }
-                            .buttonStyle(PrimaryButtonStyle())
-                        Button("Review my answers") { appModel.cancelGeneration() }
-                            .font(.headline)
-                            .frame(maxWidth: .infinity, minHeight: 50)
+                        failureActions
                     }
 
-                    Label("Complete-package prices come from the grocery catalog, never from the model. Check current shelf prices and labels.", systemImage: "checkmark.shield")
+                    Label("Your completed plan will show whether prices are provider-listed or estimated.", systemImage: "checkmark.shield")
                         .font(.caption)
                         .foregroundStyle(WeektableTheme.secondaryInk)
                         .fixedSize(horizontal: false, vertical: true)
@@ -71,13 +67,45 @@ struct GenerationView: View {
             .background(WeektableTheme.canvas)
             .navigationBarBackButtonHidden()
             .toolbar {
-                if appModel.generationError != nil {
+                if appModel.generationFailure != nil {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") { appModel.cancelGeneration() }
                     }
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private var failureActions: some View {
+        if let failure = appModel.generationFailure {
+            switch failure.kind {
+            case .budget:
+                Button("Adjust budget") { appModel.reviewGenerationBudget() }
+                    .buttonStyle(PrimaryButtonStyle())
+                secondaryButton("Review preferences") { appModel.reviewGenerationPreferences() }
+            case .constraints:
+                Button("Review preferences") { appModel.reviewGenerationPreferences() }
+                    .buttonStyle(PrimaryButtonStyle())
+                secondaryButton("Adjust budget") { appModel.reviewGenerationBudget() }
+            case .pricing:
+                Button("Review store & budget") { appModel.reviewGenerationBudget() }
+                    .buttonStyle(PrimaryButtonStyle())
+                secondaryButton("Try again") { appModel.retryGeneration() }
+            case .expired:
+                Button("Review my answers") { appModel.reviewGenerationBudget() }
+                    .buttonStyle(PrimaryButtonStyle())
+            case .temporary, .offline:
+                Button("Try again") { appModel.retryGeneration() }
+                    .buttonStyle(PrimaryButtonStyle())
+            }
+        }
+    }
+
+    private func secondaryButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(title, action: action)
+            .font(.headline)
+            .frame(maxWidth: .infinity, minHeight: 50)
     }
 
     private var generationVisual: some View {
