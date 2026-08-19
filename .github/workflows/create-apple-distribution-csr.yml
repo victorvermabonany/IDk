@@ -1,0 +1,188 @@
+name: "One-time: Create Apple Distribution CSR"
+
+on:
+  workflow_dispatch:
+    inputs:
+      certificate_common_name:
+        description: Label for this CSR, for example Cove Apple Distribution
+        required: true
+        default: Cove Apple Distribution
+        type: string
+      apple_account_email:
+        description: Email address associated with the Apple Developer account
+        required: true
+        type: string
+      country_code:
+        description: Two-letter country code used in the CSR subject
+        required: true
+        default: FR
+        type: string
+      confirmation:
+        description: Type CREATE COVE CSR to confirm this one-time key generation
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cove-apple-distribution-csr
+  cancel-in-progress: false
+
+jobs:
+  create-csr:
+    name: Generate and encrypt the signing key
+    runs-on: macos-15
+    timeout-minutes: 10
+    env:
+      KEY_ENCRYPTION_PASSWORD: ${{ secrets.APPLE_CERT_PRIVATE_KEY_PASSWORD }}
+      CSR_COMMON_NAME: ${{ inputs.certificate_common_name }}
+      CSR_EMAIL: ${{ inputs.apple_account_email }}
+      CSR_COUNTRY: ${{ inputs.country_code }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+
+    steps:
+      - name: Validate one-time request
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$CONFIRMATION" == "CREATE COVE CSR" ]] || {
+            echo "Confirmation did not match CREATE COVE CSR." >&2
+            exit 1
+          }
+          [[ ${#KEY_ENCRYPTION_PASSWORD} -ge 24 ]] || {
+            echo "Repository secret APPLE_CERT_PRIVATE_KEY_PASSWORD must contain at least 24 characters." >&2
+            exit 1
+          }
+          [[ "$CSR_COMMON_NAME" =~ ^[A-Za-z0-9._\(\)\ -]{3,64}$ ]] || {
+            echo "The certificate label contains unsupported characters." >&2
+            exit 1
+          }
+          [[ "$CSR_EMAIL" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]] || {
+            echo "The Apple account email is invalid." >&2
+            exit 1
+          }
+          [[ "$CSR_COUNTRY" =~ ^[A-Z]{2}$ ]] || {
+            echo "Country code must be two uppercase letters." >&2
+            exit 1
+          }
+
+      - name: Select OpenSSL 3
+        shell: bash
+        run: |
+          set -euo pipefail
+          OPENSSL_PREFIX="$(brew --prefix openssl@3 2>/dev/null || true)"
+          if [[ -z "$OPENSSL_PREFIX" || ! -x "$OPENSSL_PREFIX/bin/openssl" ]]; then
+            brew install openssl@3
+            OPENSSL_PREFIX="$(brew --prefix openssl@3)"
+          fi
+          echo "OPENSSL_BIN=$OPENSSL_PREFIX/bin/openssl" >> "$GITHUB_ENV"
+
+      - name: Generate RSA private key and Apple CSR
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+
+          PRIVATE_DIR="$RUNNER_TEMP/cove-apple-signing-private"
+          ARTIFACT_DIR="$RUNNER_TEMP/cove-apple-distribution-artifacts"
+          PRIVATE_KEY="$PRIVATE_DIR/Cove-Apple-Distribution.private-key.pem"
+          CSR_FILE="$ARTIFACT_DIR/Cove-Apple-Distribution.certSigningRequest"
+          ENCRYPTED_KEY="$ARTIFACT_DIR/Cove-Apple-Distribution.private-key.pem.enc"
+          FINGERPRINT_FILE="$ARTIFACT_DIR/Cove-Apple-Distribution.public-key-sha256.txt"
+          ENCRYPTION_METADATA="$ARTIFACT_DIR/Cove-Apple-Distribution.private-key-encryption.txt"
+
+          cleanup() {
+            rm -f "$PRIVATE_KEY"
+            rm -rf "$PRIVATE_DIR"
+          }
+          trap cleanup EXIT
+
+          mkdir -p "$PRIVATE_DIR" "$ARTIFACT_DIR"
+          chmod 700 "$PRIVATE_DIR" "$ARTIFACT_DIR"
+
+          "$OPENSSL_BIN" genpkey \
+            -algorithm RSA \
+            -pkeyopt rsa_keygen_bits:2048 \
+            -out "$PRIVATE_KEY"
+          chmod 600 "$PRIVATE_KEY"
+
+          "$OPENSSL_BIN" req \
+            -new \
+            -sha256 \
+            -key "$PRIVATE_KEY" \
+            -out "$CSR_FILE" \
+            -subj "/emailAddress=$CSR_EMAIL/CN=$CSR_COMMON_NAME/C=$CSR_COUNTRY"
+
+          "$OPENSSL_BIN" enc \
+            -aes-256-cbc \
+            -salt \
+            -pbkdf2 \
+            -iter 600000 \
+            -md sha256 \
+            -in "$PRIVATE_KEY" \
+            -out "$ENCRYPTED_KEY" \
+            -pass env:KEY_ENCRYPTION_PASSWORD
+
+          "$OPENSSL_BIN" pkey -in "$PRIVATE_KEY" -pubout 2>/dev/null \
+            | "$OPENSSL_BIN" dgst -sha256 \
+            | sed 's/^.*= //' > "$FINGERPRINT_FILE"
+
+          {
+            echo "format=OpenSSL enc"
+            echo "cipher=AES-256-CBC"
+            echo "kdf=PBKDF2"
+            echo "iterations=600000"
+            echo "digest=SHA-256"
+            echo "password_secret=APPLE_CERT_PRIVATE_KEY_PASSWORD"
+            echo "source_workflow_run_id=$GITHUB_RUN_ID"
+          } > "$ENCRYPTION_METADATA"
+
+          chmod 600 "$CSR_FILE" "$ENCRYPTED_KEY" "$FINGERPRINT_FILE" "$ENCRYPTION_METADATA"
+
+          "$OPENSSL_BIN" req -in "$CSR_FILE" -noout -verify
+          "$OPENSSL_BIN" enc \
+            -d \
+            -aes-256-cbc \
+            -pbkdf2 \
+            -iter 600000 \
+            -md sha256 \
+            -in "$ENCRYPTED_KEY" \
+            -pass env:KEY_ENCRYPTION_PASSWORD \
+            | "$OPENSSL_BIN" pkey -noout -check >/dev/null
+
+      - name: Upload Apple certificate signing request
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cove-Apple-Distribution-CSR
+          path: |
+            ${{ runner.temp }}/cove-apple-distribution-artifacts/Cove-Apple-Distribution.certSigningRequest
+            ${{ runner.temp }}/cove-apple-distribution-artifacts/Cove-Apple-Distribution.public-key-sha256.txt
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Preserve encrypted matching private key
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cove-Apple-Distribution-Encrypted-Private-Key
+          path: |
+            ${{ runner.temp }}/cove-apple-distribution-artifacts/Cove-Apple-Distribution.private-key.pem.enc
+            ${{ runner.temp }}/cove-apple-distribution-artifacts/Cove-Apple-Distribution.private-key-encryption.txt
+            ${{ runner.temp }}/cove-apple-distribution-artifacts/Cove-Apple-Distribution.public-key-sha256.txt
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Record next steps
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "## Cove Apple Distribution CSR created"
+            echo
+            echo "1. Download artifact \`Cove-Apple-Distribution-CSR\`."
+            echo "2. Extract and upload \`Cove-Apple-Distribution.certSigningRequest\` to Apple's **Certificates, Identifiers & Profiles → Certificates → Apple Distribution** form."
+            echo "3. Keep artifact \`Cove-Apple-Distribution-Encrypted-Private-Key\` and repository secret \`APPLE_CERT_PRIVATE_KEY_PASSWORD\`; both are required to create the matching TestFlight \`.p12\`."
+            echo "4. Record this workflow run ID: \`$GITHUB_RUN_ID\`."
+            echo
+            echo "The plaintext private key was not uploaded and is removed with the ephemeral runner workspace."
+          } >> "$GITHUB_STEP_SUMMARY"
