@@ -83,7 +83,7 @@ enum DemoPlanningEngine {
             guard total <= request.budgetCents else { return }
             let target = Double(request.budgetCents) * 0.94
             let targetScore = -abs(Double(total) - target) / 100
-            let score = targetScore + preferenceScore(meals, request: request) + overlapScore(meals)
+            let score = targetScore + preferenceScore(meals, request: request)
             if best == nil || score > best!.score { best = (meals, basket, total, score) }
         }
         guard let best else { throw DemoPlanningError.unsatisfiable }
@@ -102,24 +102,34 @@ enum DemoPlanningEngine {
         guard let index = plan.meals.firstIndex(where: { $0.id == mealID }) else { return [] }
         let usedIDs = Set(plan.meals.map(\.id))
         let current = plan.meals[index]
-        return DemoData.meals
+        let otherMeals = plan.meals.filter { $0.id != mealID }
+        let ranked = DemoData.meals
             .filter { !usedIDs.contains($0.id) && validates($0, request: plan.constraintsUsed) }
-            .compactMap { raw -> SwapPreview? in
+            .compactMap { raw -> (preview: SwapPreview, score: Double)? in
                 let candidate = scale(raw, servings: current.servings, dayIndex: index, identity: current.id)
+                guard mealSimilarity(candidate, current) < 0.72,
+                      otherMeals.allSatisfy({ mealSimilarity(candidate, $0) < 0.82 }) else { return nil }
                 var meals = plan.meals
                 meals[index] = candidate
                 guard validatesCustomCombination(meals, request: plan.constraintsUsed) else { return nil }
                 let basket = buildBasket(meals: meals, request: plan.constraintsUsed)
                 let total = basket.reduce(0) { $0 + ($1.pantryStatus ? 0 : $1.totalPriceCents) }
                 guard total <= plan.budgetCents else { return nil }
-                let oldIngredients = Set(plan.basket.map(\.ingredientID))
+                let oldIngredients = Set(otherMeals.flatMap { $0.ingredients.map(\.ingredientID) })
                 let reused = Set(candidate.ingredients.map(\.ingredientID)).intersection(oldIngredients).count
-                return SwapPreview(id: "\(mealID)-\(raw.id)-\(UUID().uuidString)", meal: candidate,
-                                   deltaCents: total - plan.estimatedTotalCents,
-                                   reusedIngredientCount: reused, resultingTotalCents: total)
+                let delta = total - plan.estimatedTotalCents
+                let preview = SwapPreview(id: "\(mealID)-\(raw.id)-\(UUID().uuidString)", meal: candidate,
+                                          deltaCents: delta, reusedIngredientCount: reused, resultingTotalCents: total)
+                let costPenalty = Double(max(0, delta)) / Double(max(1, plan.budgetCents)) * 60
+                return (preview, preferenceScore(meals, request: plan.constraintsUsed) - costPenalty)
             }
-            .sorted { $0.deltaCents < $1.deltaCents }
-            .prefix(3).map { $0 }
+            .sorted { lhs, rhs in lhs.score == rhs.score ? lhs.preview.resultingTotalCents < rhs.preview.resultingTotalCents : lhs.score > rhs.score }
+        var selected: [SwapPreview] = []
+        for candidate in ranked where selected.allSatisfy({ mealSimilarity($0.meal, candidate.preview.meal) < 0.72 }) {
+            selected.append(candidate.preview)
+            if selected.count == 3 { break }
+        }
+        return selected
     }
 
     static func replacing(plan: MealPlan, mealID: String, with preview: SwapPreview) -> MealPlan {
@@ -179,7 +189,8 @@ enum DemoPlanningEngine {
         return Meal(id: identity ?? meal.id, day: days[dayIndex % days.count], title: meal.title,
                     description: meal.description, servings: servings, prepMinutes: meal.prepMinutes,
                     cookMinutes: meal.cookMinutes, calories: meal.calories, proteinGrams: meal.proteinGrams,
-                    imageAlignment: meal.imageAlignment,
+                    imageAlignment: meal.imageAlignment, imageKey: meal.specificImageAssetName,
+                    imageMatch: meal.specificImageAssetName == nil ? "fallback" : "exact",
                     ingredients: meal.ingredients.map { RecipeIngredient(ingredientID: $0.ingredientID, name: $0.name, quantity: $0.quantity * factor, unit: $0.unit) },
                     instructions: meal.instructions)
     }
@@ -215,13 +226,13 @@ enum DemoPlanningEngine {
     private static func preferenceScore(_ meals: [Meal], request: PlannerRequest) -> Double {
         let cuisines = Set(request.preferredCuisines.map(normalize))
         let cuisineMatches = meals.filter { meal in cuisines.contains(cuisine(for: meal)) }.count
-        var score = Double(cuisineMatches * 8)
+        var score = qualityScore(meals, request: request) + Double(cuisineMatches * 18)
         switch request.nutritionStyle {
         case .highProtein: score += Double(meals.reduce(0) { $0 + $1.proteinGrams }) / 4
         case .quick: score -= Double(meals.reduce(0) { $0 + $1.totalMinutes + $1.ingredients.count }) / 5
-        case .budgetFirst: score += overlapScore(meals) * 2
+        case .budgetFirst: score += reuseScore(meals) * 0.8
         case .lighter: score -= Double(meals.reduce(0) { $0 + $1.calories }) / 80
-        case .balanced: score += Double(Set(meals.map(cuisine)).count * 4)
+        case .balanced: break
         case .vegetarian: score += Double(meals.reduce(0) { $0 + $1.proteinGrams }) / 8
         }
         if normalize(request.customInstructions).contains("reheat well") {
@@ -232,9 +243,124 @@ enum DemoPlanningEngine {
         return score
     }
 
-    private static func overlapScore(_ meals: [Meal]) -> Double {
-        let all = meals.flatMap { $0.ingredients.map(\.ingredientID) }
-        return Double(all.count - Set(all).count) * 2
+    private struct QualityProfile {
+        let protein: String
+        let starch: String
+        let vegetable: String
+        let method: String
+        let cuisine: String
+        let flavor: String
+        let format: String
+    }
+
+    private static let staples: Set<String> = ["olive_oil", "kosher_salt", "black_pepper"]
+
+    private static func qualityProfile(_ meal: Meal) -> QualityProfile {
+        let ids = meal.ingredients.map(\.ingredientID)
+        let searchable = normalize(([meal.title, meal.description] + meal.instructions).joined(separator: " "))
+        let protein = firstGroup(ids, groups: [
+            "chicken_breast": "chicken", "ground_turkey": "turkey", "chicken_sausage": "chicken sausage",
+            "tofu": "tofu", "extra_firm_tofu": "tofu", "lentils": "lentils", "dry_lentils": "lentils",
+            "chickpeas": "chickpeas", "black_beans": "black beans", "eggs": "eggs"
+        ], fallback: "other")
+        let starch = firstGroup(ids, groups: [
+            "rigatoni": "pasta", "brown_rice": "rice", "quinoa": "quinoa",
+            "flour_tortillas": "tortillas", "corn_tortillas": "tortillas", "sweet_potato": "sweet potato"
+        ], fallback: "none")
+        let vegetable = firstGroup(ids, groups: [
+            "bell_pepper": "bell pepper", "broccoli": "broccoli", "spinach": "spinach", "baby_spinach": "spinach",
+            "zucchini": "zucchini", "sweet_potato": "sweet potato", "crushed_tomatoes": "tomato", "romaine": "romaine"
+        ], fallback: "none")
+        let format: String
+        if searchable.contains("stuffed pepper") { format = "stuffed vegetables" }
+        else if searchable.contains("quesadilla") { format = "quesadillas" }
+        else if searchable.contains("taco") { format = "tacos" }
+        else if searchable.contains("curry") { format = "curry" }
+        else if searchable.contains("chili") { format = "chili" }
+        else if searchable.contains("rigatoni") || searchable.contains("pasta") { format = "pasta" }
+        else if searchable.contains("sheet pan") { format = "sheet pan" }
+        else if searchable.contains("skillet") { format = "skillet" }
+        else if searchable.contains("bowl") { format = "bowls" }
+        else if starch == "rice" || starch == "quinoa" { format = "grain bowls" }
+        else { format = "plated dinner" }
+        let method: String
+        if searchable.contains("roast") || searchable.contains("oven") || searchable.contains("sheet pan") { method = "roasted" }
+        else if searchable.contains("simmer") || format == "curry" || format == "chili" { method = "simmered" }
+        else if searchable.contains("sear") || searchable.contains("sauté") || searchable.contains("skillet") || searchable.contains("crisp") { method = "skillet cooked" }
+        else { method = "mixed method" }
+        let flavor: String
+        if ids.contains("basil_pesto") { flavor = "herby pesto" }
+        else if ids.contains("soy_sauce") { flavor = "savory soy" }
+        else if ids.contains("coconut_milk") { flavor = "coconut spice" }
+        else if ids.contains("smoked_paprika") { flavor = "smoky paprika" }
+        else if ids.contains("lime") && cuisine(for: meal) == "mexican" { flavor = "bright lime" }
+        else { flavor = cuisine(for: meal) }
+        return QualityProfile(protein: protein, starch: starch, vegetable: vegetable, method: method,
+                              cuisine: cuisine(for: meal), flavor: flavor, format: format)
+    }
+
+    private static func firstGroup(_ ids: [String], groups: [String: String], fallback: String) -> String {
+        ids.compactMap { groups[$0] }.first ?? fallback
+    }
+
+    private static func counts(_ values: [String]) -> [String: Int] {
+        values.reduce(into: [:]) { result, value in result[value, default: 0] += 1 }
+    }
+
+    private static func repeatPenalty(_ counts: [String: Int], weight: Double) -> Double {
+        counts.values.reduce(0) { total, count in
+            guard count >= 2 else { return total }
+            let penalty = (2...count).reduce(0.0) { partial, use in
+                partial + weight * pow(Double(use - 1), 2)
+            }
+            return total + penalty
+        }
+    }
+
+    private static func reuseScore(_ meals: [Meal]) -> Double {
+        let ingredientCounts = counts(meals.flatMap { $0.ingredients.map(\.ingredientID) }.filter { !staples.contains($0) })
+        return ingredientCounts.values.reduce(0) { score, count in
+            guard count >= 2 else { return score }
+            let useful = 5 + Double(max(0, min(count, 3) - 2) * 2)
+            let excessive = count > 3 ? pow(Double(count - 3), 2) * 3 : 0
+            return score + useful - excessive
+        }
+    }
+
+    private static func qualityScore(_ meals: [Meal], request: PlannerRequest) -> Double {
+        let profiles = meals.map(qualityProfile)
+        let proteins = counts(profiles.map(\.protein)), starches = counts(profiles.map(\.starch))
+        let vegetables = counts(profiles.map(\.vegetable)), methods = counts(profiles.map(\.method))
+        let cuisines = counts(profiles.map(\.cuisine)), flavors = counts(profiles.map(\.flavor)), formats = counts(profiles.map(\.format))
+        let uniqueReward = Double(Set(profiles.map(\.protein)).count * 3 + Set(profiles.map(\.starch)).count * 2
+                                  + Set(profiles.map(\.format)).count * 4 + Set(profiles.map(\.flavor)).count * 3
+                                  + Set(profiles.map(\.method)).count * 2)
+            + Double(Set(profiles.map(\.cuisine)).count) * (request.preferredCuisines.isEmpty ? 2 : 0.5)
+        let penalty = repeatPenalty(proteins, weight: 4) + repeatPenalty(starches, weight: 3)
+            + repeatPenalty(vegetables, weight: 2) + repeatPenalty(methods, weight: 2.5)
+            + repeatPenalty(flavors, weight: 4) + repeatPenalty(formats, weight: 4)
+            + repeatPenalty(cuisines, weight: request.preferredCuisines.isEmpty ? 2.5 : 0.5)
+        let servings = request.householdSize + (request.leftovers.enabled ? max(1, request.leftovers.extraServings) : 0)
+        let centsPerServingDinner = Double(request.budgetCents) / Double(max(1, request.dinnerCount * servings))
+        let tightBudget = request.nutritionStyle == .budgetFirst || centsPerServingDinner < 650
+        let reuseWeight = request.nutritionStyle == .budgetFirst ? 1.8 : (tightBudget ? 1.35 : 1)
+        return (uniqueReward - penalty) * (tightBudget ? 0.55 : 1) + reuseScore(meals) * reuseWeight
+    }
+
+    private static func mealSimilarity(_ left: Meal, _ right: Meal) -> Double {
+        if normalize(left.title) == normalize(right.title) { return 1 }
+        let leftIngredients = Set(left.ingredients.map(\.ingredientID).filter { !staples.contains($0) })
+        let rightIngredients = Set(right.ingredients.map(\.ingredientID).filter { !staples.contains($0) })
+        let union = leftIngredients.union(rightIngredients)
+        let ingredientScore = union.isEmpty ? 0 : Double(leftIngredients.intersection(rightIngredients).count) / Double(union.count)
+        let lhs = qualityProfile(left), rhs = qualityProfile(right)
+        var profileScore = lhs.protein == rhs.protein ? 0.15 : 0
+        profileScore += lhs.starch == rhs.starch ? 0.10 : 0
+        profileScore += lhs.format == rhs.format ? 0.15 : 0
+        profileScore += lhs.method == rhs.method ? 0.05 : 0
+        profileScore += lhs.cuisine == rhs.cuisine ? 0.05 : 0
+        profileScore += lhs.flavor == rhs.flavor ? 0.05 : 0
+        return ingredientScore * 0.45 + profileScore
     }
 
     private static func cuisine(for meal: Meal) -> String {

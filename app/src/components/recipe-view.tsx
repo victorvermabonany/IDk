@@ -37,7 +37,7 @@ export function RecipeView({ initialPlan, mealId }: { initialPlan: MealPlan; mea
             <div><dt>Basket share</dt><dd>{formatMoney(Math.round(contribution))}</dd></div>
           </dl>
         </div>
-        <FoodImage mealId={meal.id} mealTitle={meal.title} className="recipe-photo" alt={meal.title} position={meal.imagePosition} priority />
+        <FoodImage mealId={meal.id} imageKey={meal.imageKey} imageMatch={meal.imageMatch} className="recipe-photo" alt={meal.title} position={meal.imagePosition} priority />
       </section>
 
       <div className="recipe-body page-shell">

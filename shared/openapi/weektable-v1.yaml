@@ -263,6 +263,8 @@ components:
         calories: { type: integer, minimum: 0 }
         proteinGrams: { type: integer, minimum: 0 }
         imageAlignment: { type: number, minimum: 0, maximum: 1 }
+        imageKey: { type: string, description: Cove asset key selected by the content-integrity matcher }
+        imageMatch: { type: string, enum: [exact, category, fallback] }
         cuisine: { type: string }
         tags: { type: array, items: { type: string } }
         ingredients: { type: array, items: { $ref: "#/components/schemas/RecipeIngredient" } }

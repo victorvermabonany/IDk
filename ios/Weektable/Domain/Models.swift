@@ -178,33 +178,34 @@ struct Meal: Codable, Hashable, Identifiable, Sendable {
     let calories: Int
     let proteinGrams: Int
     let imageAlignment: Double
+    var imageKey: String? = nil
+    var imageMatch: String? = nil
     let ingredients: [RecipeIngredient]
     let instructions: [String]
 
     var totalMinutes: Int { prepMinutes + cookMinutes }
 
     var specificImageAssetName: String? {
-        switch title.lowercased() {
-        case let value where value.contains("pesto rigatoni"): "meal-pesto-rigatoni"
-        case let value where value.contains("chicken tacos"): "meal-crispy-chicken-tacos"
-        case let value where value.contains("turkey rice bowls"): "meal-turkey-rice-bowls"
-        case let value where value.contains("turkey chili"): "meal-smoky-turkey-chili"
-        case let value where value.contains("sausage") && value.contains("peppers"): "meal-sausage-peppers"
-        case let value where value.contains("turkey rigatoni"): "meal-turkey-rigatoni"
-        case let value where value.contains("black bean") && value.contains("quesadilla"): "meal-black-bean-quesadillas"
-        case let value where value.contains("tofu") && value.contains("rice"): "meal-tofu-rice-bowls"
-        case let value where value.contains("lentil") && value.contains("tomato"): "meal-lentil-tomato-bowls"
-        case let value where value.contains("chickpea") && value.contains("curry"): "meal-chickpea-coconut-curry"
-        case let value where value.contains("sweet potato") && value.contains("taco"): "meal-sweet-potato-black-bean-tacos"
-        case let value where value.contains("chickpea") && value.contains("quinoa"): "meal-mediterranean-chickpea-quinoa"
-        case let value where value.contains("tofu") && value.contains("quinoa"): "meal-tofu-quinoa-skillet"
-        case let value where value.contains("lentil") && value.contains("rice"): "meal-lentil-rice-pepper-bowls"
-        case let value where value.contains("egg") && value.contains("quinoa"): "meal-egg-quinoa-vegetable-bowls"
-        default: nil
-        }
+        if imageMatch == "fallback" { return nil }
+        if let imageKey, Self.supportedImageAssets.contains(imageKey) { return imageKey }
+        guard imageMatch == nil else { return nil }
+        return Self.exactImageAssetsByMealID[id]
     }
 
     var imageAssetName: String { specificImageAssetName ?? "weektable-dinners" }
+
+    private static let exactImageAssetsByMealID: [String: String] = [
+        "pesto-rigatoni": "meal-pesto-rigatoni", "crispy-chicken-tacos": "meal-crispy-chicken-tacos",
+        "turkey-rice-bowls": "meal-turkey-rice-bowls", "smoky-turkey-chili": "meal-smoky-turkey-chili",
+        "sausage-pepper-pan": "meal-sausage-peppers", "turkey-tomato-rigatoni": "meal-turkey-rigatoni",
+        "bean-pepper-quesadillas": "meal-black-bean-quesadillas", "tofu-rice-bowls": "meal-tofu-rice-bowls",
+        "lentil-tomato-bowls": "meal-lentil-tomato-bowls", "chickpea-coconut-curry": "meal-chickpea-coconut-curry",
+        "sweet-potato-tacos": "meal-sweet-potato-black-bean-tacos", "sweet-potato-black-bean-tacos": "meal-sweet-potato-black-bean-tacos",
+        "mediterranean-quinoa": "meal-mediterranean-chickpea-quinoa", "mediterranean-chickpea-quinoa": "meal-mediterranean-chickpea-quinoa",
+        "tofu-quinoa-skillet": "meal-tofu-quinoa-skillet", "lentil-rice-stuffed-peppers": "meal-lentil-rice-pepper-bowls",
+        "egg-quinoa-vegetable-bowls": "meal-egg-quinoa-vegetable-bowls"
+    ]
+    private static let supportedImageAssets: Set<String> = Set(exactImageAssetsByMealID.values)
 }
 
 enum Department: String, Codable, CaseIterable, Identifiable, Hashable, Sendable {

@@ -1,5 +1,6 @@
 import { INGREDIENT_ALLERGENS, INGREDIENT_DIETARY_TRAITS } from "./fixtures";
 import { normalizeIngredientName } from "./engine";
+import { mealQualityScore, mealVarietyReport } from "./meal-quality";
 import { PlanGenerationError, unitSchema, type Meal, type PlannerRequest } from "./types";
 
 const meatWords = ["chicken", "turkey", "beef", "pork", "lamb", "sausage", "bacon", "ham", "fish", "salmon", "tuna", "shrimp", "crab", "lobster", "shellfish", "gelatin", "meat broth", "chicken broth", "beef broth"];
@@ -101,19 +102,17 @@ export function validatePlanOrThrow(meals: Meal[], request: PlannerRequest) {
 }
 
 export function preferenceScore(meals: Meal[], request: PlannerRequest) {
-  const uniqueIngredients = new Set(meals.flatMap((meal) => meal.ingredients.map((item) => item.ingredientId))).size;
   const totalUses = meals.reduce((sum, meal) => sum + meal.ingredients.length, 0);
-  const overlap = totalUses - uniqueIngredients;
   const averageProtein = meals.reduce((sum, meal) => sum + meal.proteinGrams, 0) / meals.length;
   const averageCalories = meals.reduce((sum, meal) => sum + meal.calories, 0) / meals.length;
   const averageTime = meals.reduce((sum, meal) => sum + meal.prepMinutes + meal.cookMinutes, 0) / meals.length;
   const averageIngredients = totalUses / meals.length;
   const cuisineMatches = request.preferredCuisines.length === 0 ? 0 : meals.filter((meal) => request.preferredCuisines.some((cuisine) => meal.cuisine.toLowerCase().includes(cuisine.toLowerCase()))).length;
-  let score = overlap * 3 + cuisineMatches * 12;
+  const quality = mealVarietyReport(meals, request);
+  let score = mealQualityScore(meals, request) + cuisineMatches * 18;
   if (request.nutritionStyle === "high-protein") score += averageProtein * 2;
   if (request.nutritionStyle === "quick") score += (request.maxCookingMinutes - averageTime) * 2 - averageIngredients * 2;
-  if (request.nutritionStyle === "budget-first") score += overlap * 8 - uniqueIngredients * 2;
+  if (request.nutritionStyle === "budget-first") score += quality.reuseScore * 0.8;
   if (request.nutritionStyle === "lighter") score += Math.max(0, 700 - averageCalories) / 10;
-  if (request.nutritionStyle === "balanced") score += new Set(meals.map((meal) => meal.cuisine)).size * 5;
   return score;
 }

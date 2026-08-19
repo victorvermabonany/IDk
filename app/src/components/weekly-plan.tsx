@@ -104,7 +104,7 @@ export function WeeklyPlan({ initialPlan }: { initialPlan: MealPlan }) {
             <li className="week-meal" key={meal.id}>
               <div className="week-meal__day"><span>{String(index + 1).padStart(2, "0")}</span><strong>{meal.day}</strong></div>
               <Link className="week-meal__image-link" href={`/plans/${plan.id}/meals/${meal.id}`}>
-                <FoodImage mealId={meal.id} mealTitle={meal.title} alt={meal.title} position={meal.imagePosition} className="week-meal__image" priority={index === 0} />
+                <FoodImage mealId={meal.id} imageKey={meal.imageKey} imageMatch={meal.imageMatch} alt={meal.title} position={meal.imagePosition} className="week-meal__image" priority={index === 0} />
               </Link>
               <div className="week-meal__content">
                 <Link href={`/plans/${plan.id}/meals/${meal.id}`}><h3>{meal.title}</h3></Link>
@@ -137,7 +137,7 @@ export function WeeklyPlan({ initialPlan }: { initialPlan: MealPlan }) {
                 const overBudget = preview.resultingTotalCents > plan.budgetCents;
                 return (
                   <article key={preview.meal.title}>
-                    <FoodImage mealId={preview.meal.id} mealTitle={preview.meal.title} alt="" decorative className="swap-option__image" />
+                    <FoodImage mealId={preview.meal.id} imageKey={preview.meal.imageKey} imageMatch={preview.meal.imageMatch} alt="" decorative className="swap-option__image" />
                     <div><h3>{preview.meal.title}</h3><p>{preview.meal.prepMinutes + preview.meal.cookMinutes} min · reuses {preview.reusedIngredientCount} basket ingredients</p></div>
                     <div className="swap-option__action"><strong className={preview.deltaCents <= 0 ? "is-saving" : ""}>{preview.deltaCents < 0 ? `Save ${formatMoney(Math.abs(preview.deltaCents))}` : preview.deltaCents > 0 ? `Add ${formatMoney(preview.deltaCents)}` : "No basket change"}</strong><small>Full weekly basket</small><button className="button-secondary" type="button" disabled={overBudget || applyingPreviewId !== null} onClick={() => applySwap(preview)}>{overBudget ? `Over budget · ${formatMoney(preview.resultingTotalCents)}` : applyingPreviewId === preview.id ? "Applying…" : `Choose meal · New basket ${formatMoney(preview.resultingTotalCents)}`}</button></div>
                   </article>

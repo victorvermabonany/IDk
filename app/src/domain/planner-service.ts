@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { buildBasket, basketTotal, normalizeIngredientName, priceCoverage, scaleMeal } from "./engine";
 import { mealConstraintIssues, preferenceScore, requiredServings, validatePlanOrThrow } from "./constraints";
+import { prepareMealContent } from "./meal-quality";
 import { DEMO_MEALS, DEMO_STORE, DEMO_STORES } from "./fixtures";
 import { providerForStore } from "./grocery-providers";
 import { budgetTargetPercent, runtimeMode } from "@/server/runtime-config";
@@ -69,7 +70,15 @@ async function priceCombination(meals: Meal[], request: PlannerRequest, store: P
 
 async function optimizeCandidates(candidates: Meal[], request: PlannerRequest, store: ProviderStore, provider: GroceryProvider) {
   const servings = requiredServings(request);
+  const normalizedTitles = new Set<string>();
   const eligible = candidates
+    .map(prepareMealContent)
+    .filter((meal) => {
+      const title = meal.title.toLowerCase();
+      if (normalizedTitles.has(title)) return false;
+      normalizedTitles.add(title);
+      return true;
+    })
     .map((meal) => scaleMeal(meal, servings))
     .filter((meal) => mealConstraintIssues(meal, request).length === 0)
     .sort((left, right) => preferenceScore([right], request) - preferenceScore([left], request))

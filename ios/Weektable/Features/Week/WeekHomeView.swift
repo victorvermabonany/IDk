@@ -168,7 +168,7 @@ private struct WeekMealRow: View {
                         Text(meal.title)
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(WeektableTheme.ink)
-                            .lineLimit(3)
+                            .lineLimit(2, reservesSpace: true)
                         Text("~\(estimatedCostCents.currency)")
                             .font(.caption)
                             .foregroundStyle(WeektableTheme.brand)

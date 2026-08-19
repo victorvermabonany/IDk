@@ -41,6 +41,7 @@ export interface Meal {
   id: string; day: string; title: string; description: string; servings: number;
   prepMinutes: number; cookMinutes: number; calories: number; proteinGrams: number;
   cuisine: string; tags: string[]; ingredients: RecipeIngredient[]; instructions: string[]; imagePosition: string;
+  imageKey?: string; imageMatch?: "exact" | "category" | "fallback";
 }
 export interface ProviderStore {
   id: string; providerStoreId: string; name: string; retailer: string; address: string; zipCode: string;

@@ -20,7 +20,7 @@ const catalogIngredientSchema: z.ZodType<RecipeIngredient> = z.discriminatedUnio
 );
 const proposalSchema = z.object({
   meals: z.array(z.object({
-    day: z.string().min(3).max(12), title: z.string().min(4).max(80), description: z.string().min(20).max(180),
+    day: z.string().min(3).max(12), title: z.string().min(4).max(56), description: z.string().min(20).max(180),
     servings: z.number().int().min(1).max(16), prepMinutes: z.number().int().min(0).max(60),
     cookMinutes: z.number().int().min(1).max(90), calories: z.number().int().min(200).max(1200),
     proteinGrams: z.number().int().min(5).max(120), cuisine: z.string().min(3).max(40),
@@ -56,6 +56,8 @@ export async function proposeMeals(request: PlannerRequest, repairFeedback?: str
           "Hard constraints always override custom instructions and preferences. Never invent prices, packages, products, availability, or nutrition provenance.",
           "Use only ingredient IDs and recipe units in the supplied canonical ingredient catalog.",
           "Treat prepMinutes plus cookMinutes as total cooking time. Prefer ingredient reuse, complete-package efficiency, cuisine preferences, and the requested nutrition style.",
+          "Keep each meal title natural and concise: usually 2 to 6 words, naming the dish and its most important distinction rather than listing every ingredient or garnish.",
+          "Offer meaningful variety across primary proteins, starches, vegetables, cooking methods, cuisines, flavors, and meal formats. Reuse ingredients intelligently, but avoid near-duplicate meals or excessive use of one centerpiece ingredient.",
           "Quick means fewer ingredients and simple methods. Budget-first means low-cost proteins and high reuse. Balanced means reasonable variety. Lighter is a style preference, not calorie restriction.",
           "Return structured recipe facts only.",
         ].join(" "),

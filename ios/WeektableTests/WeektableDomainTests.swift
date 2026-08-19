@@ -214,6 +214,58 @@ final class WeektableDomainTests: XCTestCase {
         XCTAssertEqual(plan.constraintsUsed, request)
     }
 
+    func testVegetarianHighProteinFixtureWeekLimitsCenterpieceRepetition() async throws {
+        let repository = DemoPlanRepository()
+        var request = PlannerRequest()
+        request.nutritionStyle = .highProtein
+        request.dietaryRestrictions = ["vegetarian"]
+        request.dinnerCount = 5
+        request.budgetCents = 10_000
+        let job = try await repository.createPlan(request: request, idempotencyKey: "meal-quality")
+        let plan = try await repository.plan(id: job.planID)
+
+        let proteinGroups = [
+            "tofu": "tofu", "eggs": "eggs", "lentils": "lentils",
+            "black_beans": "black beans", "chickpeas": "chickpeas"
+        ]
+        let proteins = plan.meals.compactMap { meal in
+            meal.ingredients.compactMap { proteinGroups[$0.ingredientID] }.first
+        }
+        let maximumProteinUse = Dictionary(grouping: proteins, by: { $0 }).values.map(\.count).max() ?? 0
+        let quinoaMeals = plan.meals.filter { $0.ingredients.contains(where: { $0.ingredientID == "quinoa" }) }.count
+        let formats = plan.meals.map { meal -> String in
+            let title = meal.title.lowercased()
+            if title.contains("taco") { return "tacos" }
+            if title.contains("quesadilla") { return "quesadillas" }
+            if title.contains("curry") { return "curry" }
+            if title.contains("skillet") { return "skillet" }
+            if title.contains("bowl") { return "bowls" }
+            return "other"
+        }
+
+        XCTAssertLessThanOrEqual(maximumProteinUse, 2)
+        XCTAssertLessThanOrEqual(quinoaMeals, 2)
+        XCTAssertGreaterThanOrEqual(Set(formats).count, 4)
+        XCTAssertLessThanOrEqual(plan.estimatedTotalCents, request.budgetCents)
+    }
+
+    func testMealImageMetadataPreventsKnownIDFromForcingWrongPhoto() {
+        var fallback = DemoData.meals[0]
+        fallback.imageKey = nil
+        fallback.imageMatch = "fallback"
+        XCTAssertNil(fallback.specificImageAssetName)
+
+        var category = DemoData.meals[0]
+        category.imageKey = "meal-chickpea-coconut-curry"
+        category.imageMatch = "category"
+        XCTAssertEqual(category.specificImageAssetName, "meal-chickpea-coconut-curry")
+
+        var unsupported = DemoData.meals[0]
+        unsupported.imageKey = "meal-not-in-cove"
+        unsupported.imageMatch = "category"
+        XCTAssertNil(unsupported.specificImageAssetName)
+    }
+
     func testLeftoversPantryAndStoreRepriceAuthoritatively() async throws {
         let repository = DemoPlanRepository()
         var request = PlannerRequest()
