@@ -15,7 +15,7 @@ struct HomeView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 14) {
                 header
 
                 VStack(alignment: .leading, spacing: 3) {
@@ -53,10 +53,18 @@ struct HomeView: View {
     private var header: some View {
         HStack {
             CoveBrandMark()
+                .scaleEffect(0.9, anchor: .leading)
             Spacer()
+            Button { } label: {
+                Image(systemName: "bell")
+                    .font(.system(size: 19, weight: .medium))
+                    .foregroundStyle(WeektableTheme.ink)
+                    .frame(width: 38, height: 38)
+            }
+            .accessibilityLabel("Notifications")
             Button { appModel.presentSettings() } label: {
                 Image(systemName: "person.crop.circle.fill")
-                    .font(.system(size: 34))
+                    .font(.system(size: 32))
                     .foregroundStyle(WeektableTheme.brand)
                     .symbolRenderingMode(.hierarchical)
             }
@@ -66,8 +74,8 @@ struct HomeView: View {
 
     private var assistantBar: some View {
         Button { appModel.presentAssistant() } label: {
-            HStack(spacing: 12) {
-                CoveOtterAvatar(size: 42)
+            HStack(spacing: 10) {
+                CoveOtterAvatar(size: 36)
                 Text("Ask Cove anything…")
                     .font(.body)
                     .foregroundStyle(WeektableTheme.secondaryInk.opacity(0.68))
@@ -75,10 +83,10 @@ struct HomeView: View {
                 Image(systemName: "arrow.up")
                     .font(.body.weight(.bold))
                     .foregroundStyle(.white)
-                    .frame(width: 40, height: 40)
+                    .frame(width: 36, height: 36)
                     .background(WeektableTheme.brand, in: Circle())
             }
-            .padding(8)
+            .padding(7)
             .background(WeektableTheme.raised, in: Capsule())
             .overlay { Capsule().stroke(WeektableTheme.divider.opacity(0.55), lineWidth: 0.75) }
             .shadow(color: WeektableTheme.ink.opacity(0.05), radius: 12, y: 6)
@@ -90,29 +98,29 @@ struct HomeView: View {
     private func weekHero(_ plan: MealPlan) -> some View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 7) {
                     Text("THIS WEEK")
                         .font(.caption2.weight(.black))
                         .tracking(0.8)
                     Text("\(plan.meals.count) dinners planned")
-                        .font(.system(size: 24, weight: .semibold, design: .serif))
+                        .font(.system(size: 21, weight: .semibold, design: .serif))
                         .fixedSize(horizontal: false, vertical: true)
                     Text("\(appModel.groceryTotalCents.currency) of \(plan.budgetCents.currency) budget")
                         .font(.subheadline)
                         .foregroundStyle(WeektableTheme.secondaryInk)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.leading, 18)
+                .padding(.leading, 16)
 
                 Image("weektable-dinners")
                     .resizable()
                     .scaledToFill()
-                    .frame(width: 145, height: 166)
+                    .frame(width: 142, height: 132)
                     .clipped()
                     .accessibilityHidden(true)
             }
 
-            VStack(spacing: 14) {
+            VStack(spacing: 10) {
                 ProgressView(value: Double(appModel.groceryTotalCents), total: Double(max(plan.budgetCents, 1)))
                     .tint(WeektableTheme.brand)
                     .accessibilityLabel("Weekly grocery budget")
@@ -127,11 +135,11 @@ struct HomeView: View {
                     }
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
-                    .frame(height: 48)
+                    .frame(height: 42)
                     .background(WeektableTheme.brandDeep, in: Capsule())
                 }
             }
-            .padding(16)
+            .padding(12)
         }
         .background(WeektableTheme.surface.opacity(0.72))
         .clipShape(RoundedRectangle(cornerRadius: WeektableTheme.cardRadius, style: .continuous))
@@ -161,12 +169,12 @@ struct HomeView: View {
                     .background(WeektableTheme.brandDeep, in: Capsule())
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(18)
+            .padding(16)
 
             Image("weektable-dinners")
                 .resizable()
                 .scaledToFill()
-                .frame(width: 132, height: 205)
+                .frame(width: 132, height: 180)
                 .clipped()
                 .accessibilityHidden(true)
         }
@@ -219,8 +227,8 @@ struct HomeView: View {
                 }
             }
             .foregroundStyle(WeektableTheme.ink)
-            .padding(16)
-            .frame(maxWidth: .infinity, minHeight: 170, alignment: .leading)
+            .padding(14)
+            .frame(maxWidth: .infinity, minHeight: 135, alignment: .leading)
             .coveCard(radius: 20)
         }
         .buttonStyle(.plain)
@@ -241,7 +249,7 @@ private struct DashboardTile: View {
     let imageName: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
+        VStack(alignment: .leading, spacing: 5) {
             Text(title).font(.headline)
             Text(subtitle)
                 .font(.subheadline)
@@ -252,22 +260,22 @@ private struct DashboardTile: View {
                     .font(.caption)
                     .foregroundStyle(WeektableTheme.brand)
             }
-            Spacer(minLength: 4)
+            Spacer(minLength: 2)
             if let imageName {
                 HStack {
                     Spacer()
                     Image(imageName)
                         .resizable()
                         .scaledToFill()
-                        .frame(width: 92, height: 76)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .frame(width: 72, height: 58)
+                        .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
                         .accessibilityHidden(true)
                 }
             }
         }
         .foregroundStyle(WeektableTheme.ink)
-        .padding(16)
-        .frame(maxWidth: .infinity, minHeight: 170, alignment: .leading)
+        .padding(14)
+        .frame(maxWidth: .infinity, minHeight: 135, alignment: .leading)
         .coveCard(radius: 20)
     }
 }

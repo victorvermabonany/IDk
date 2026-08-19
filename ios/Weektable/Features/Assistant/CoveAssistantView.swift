@@ -5,22 +5,28 @@ struct CoveAssistantView: View {
     @Bindable var appModel: AppModel
     @Environment(\.dismiss) private var dismiss
     @State private var draft = ""
-    @State private var messages: [CoveMessage] = [
-        CoveMessage(role: .cove, text: "Hey! I’m Cove. How can I help with your week?")
-    ]
+    @State private var messages: [CoveMessage]
+
+    init(appModel: AppModel) {
+        self.appModel = appModel
+        let isScreenshotState = ProcessInfo.processInfo.arguments.contains("-cove-ui-test-assistant")
+        _messages = State(initialValue: isScreenshotState ? CoveMessage.screenshotConversation : [
+            CoveMessage(role: .cove, text: "Hey! I’m Cove. How can I help with your week?")
+        ])
+    }
 
     var body: some View {
         NavigationStack {
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(spacing: 16) {
+                    LazyVStack(spacing: 13) {
                         ForEach(messages) { message in
                             messageRow(message)
                                 .id(message.id)
                         }
                     }
                     .padding(.horizontal, WeektableTheme.pagePadding)
-                    .padding(.vertical, 18)
+                    .padding(.vertical, 14)
                 }
                 .background(WeektableTheme.canvas)
                 .scrollDismissesKeyboard(.interactively)
@@ -56,9 +62,9 @@ struct CoveAssistantView: View {
             if message.role == .cove { CoveOtterAvatar(size: 38) }
             if message.role == .user { Spacer(minLength: 50) }
 
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
                 Text(message.text)
-                    .font(.body)
+                    .font(.subheadline)
                     .foregroundStyle(WeektableTheme.ink)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -71,7 +77,7 @@ struct CoveAssistantView: View {
                         .background(action.isPrimary ? WeektableTheme.terracotta : WeektableTheme.surface, in: Capsule())
                 }
             }
-            .padding(15)
+            .padding(13)
             .background(message.role == .cove ? WeektableTheme.raised : WeektableTheme.sage.opacity(0.30))
             .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             .shadow(color: message.role == .cove ? WeektableTheme.ink.opacity(0.045) : .clear, radius: 10, y: 5)
@@ -184,6 +190,18 @@ private struct CoveMessage: Identifiable {
     let role: Role
     let text: String
     var action: CoveAssistantAction? = nil
+
+    static let screenshotConversation: [CoveMessage] = [
+        CoveMessage(role: .cove, text: "Hey! I’m Cove. How can I help with your week?"),
+        CoveMessage(role: .user, text: "Can you make Wednesday dinner quicker?"),
+        CoveMessage(
+            role: .cove,
+            text: "Absolutely — I found a quicker swap that keeps the week on budget.",
+            action: .week
+        ),
+        CoveMessage(role: .user, text: "Yes please!"),
+        CoveMessage(role: .cove, text: "Done! I updated your week. Anything else I can help with?")
+    ]
 }
 
 private enum CoveAssistantAction {

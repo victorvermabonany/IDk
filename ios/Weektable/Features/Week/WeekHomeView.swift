@@ -5,7 +5,7 @@ struct WeekHomeView: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 14) {
+            LazyVStack(alignment: .leading, spacing: 10) {
                 WeekDateStrip()
 
                 if let plan = appModel.plan {
@@ -73,14 +73,14 @@ struct WeekHomeView: View {
     }
 
     private func budgetSummary(_ plan: MealPlan) -> some View {
-        VStack(spacing: 11) {
+        VStack(spacing: 7) {
             HStack(alignment: .lastTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Current grocery spend")
-                        .font(.caption)
+                        .font(.caption2)
                         .foregroundStyle(WeektableTheme.secondaryInk)
                     Text(appModel.groceryTotalCents.currency)
-                        .font(.system(size: 25, weight: .semibold, design: .serif))
+                        .font(.system(size: 22, weight: .semibold, design: .serif))
                         .monospacedDigit()
                 }
                 Spacer()
@@ -91,7 +91,7 @@ struct WeekHomeView: View {
             ProgressView(value: Double(appModel.groceryTotalCents), total: Double(max(plan.budgetCents, 1)))
                 .tint(WeektableTheme.brand)
         }
-        .padding(15)
+        .padding(10)
         .background(WeektableTheme.surface.opacity(0.7), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Current grocery spend \(appModel.groceryTotalCents.currency) of \(plan.budgetCents.currency)")
@@ -115,18 +115,18 @@ private struct WeekDateStrip: View {
     var body: some View {
         HStack(spacing: 0) {
             ForEach(Array(dates.enumerated()), id: \.offset) { index, date in
-                VStack(spacing: 7) {
+                VStack(spacing: 4) {
                     Text(date.formatted(.dateTime.weekday(.narrow)))
                         .font(.caption.weight(.semibold))
                     Text(date.formatted(.dateTime.day()))
                         .font(.caption)
                 }
                 .foregroundStyle(index == 0 ? .white : WeektableTheme.ink)
-                .frame(maxWidth: .infinity, minHeight: 55)
+                .frame(maxWidth: .infinity, minHeight: 44)
                 .background(index == 0 ? WeektableTheme.terracotta : Color.clear, in: Capsule())
             }
         }
-        .padding(8)
+        .padding(6)
         .background(WeektableTheme.raised, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .shadow(color: WeektableTheme.ink.opacity(0.045), radius: 12, y: 5)
         .accessibilityElement(children: .contain)
@@ -140,30 +140,30 @@ private struct WeekMealRow: View {
     let onSwap: () -> Void
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             NavigationLink(value: meal.id) {
-                HStack(spacing: 14) {
+                HStack(spacing: 10) {
                     MealPhoto(meal: meal)
-                        .frame(width: 116, height: 112)
+                        .frame(width: 88, height: 86)
                         .clipped()
                         .overlay(alignment: .topLeading) {
                             Text(isTonight ? "TODAY" : shortDay)
                                 .font(.caption2.weight(.black))
                                 .foregroundStyle(WeektableTheme.ink)
-                                .padding(.horizontal, 9)
-                                .padding(.vertical, 6)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 5)
                                 .background((isTonight ? WeektableTheme.gold : WeektableTheme.raised).opacity(0.94), in: Capsule())
-                                .padding(8)
+                                .padding(6)
                         }
                         .clipShape(RoundedRectangle(cornerRadius: 17, style: .continuous))
 
-                    VStack(alignment: .leading, spacing: 7) {
+                    VStack(alignment: .leading, spacing: 5) {
                         Text(meal.title)
-                            .font(.body.weight(.semibold))
+                            .font(.subheadline.weight(.semibold))
                             .foregroundStyle(WeektableTheme.ink)
                             .lineLimit(3)
                         Text("~\(estimatedCostCents.currency)")
-                            .font(.subheadline)
+                            .font(.caption)
                             .foregroundStyle(WeektableTheme.brand)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -171,7 +171,7 @@ private struct WeekMealRow: View {
             }
             .buttonStyle(.plain)
 
-            VStack(alignment: .trailing, spacing: 15) {
+            VStack(alignment: .trailing, spacing: 8) {
                 Text("\(meal.totalMinutes) min")
                     .font(.caption.weight(.medium))
                     .foregroundStyle(WeektableTheme.terracotta)
@@ -180,13 +180,14 @@ private struct WeekMealRow: View {
                     Image(systemName: "arrow.triangle.2.circlepath")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(WeektableTheme.brand)
-                        .frame(width: 42, height: 42)
+                        .frame(width: 38, height: 38)
                         .background(WeektableTheme.selected, in: Circle())
                 }
+                .frame(minWidth: 44, minHeight: 44)
                 .accessibilityLabel("Swap \(meal.title)")
             }
         }
-        .padding(10)
+        .padding(6)
         .coveCard(radius: 20)
         .accessibilityElement(children: .contain)
     }
