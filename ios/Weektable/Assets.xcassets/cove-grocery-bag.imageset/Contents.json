@@ -1,0 +1,13 @@
+{
+  "images" : [
+    {
+      "filename" : "cove-grocery-bag.png",
+      "idiom" : "universal",
+      "scale" : "1x"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

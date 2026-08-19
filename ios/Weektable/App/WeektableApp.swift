@@ -22,7 +22,7 @@ struct WeektableApp: App {
         WindowGroup {
             RootView(appModel: appModel)
                 .tint(WeektableTheme.brand)
-                .preferredColorScheme(nil)
+                .preferredColorScheme(.light)
         }
         .modelContainer(appModel.persistence.container)
     }

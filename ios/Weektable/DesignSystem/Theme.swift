@@ -3,11 +3,11 @@ import UIKit
 
 enum WeektableTheme {
     static let brand = adaptive(
-        light: UIColor(red: 0.20, green: 0.34, blue: 0.23, alpha: 1),
+        light: UIColor(red: 0.22, green: 0.34, blue: 0.24, alpha: 1),
         dark: UIColor(red: 0.58, green: 0.73, blue: 0.57, alpha: 1)
     )
     static let brandDeep = adaptive(
-        light: UIColor(red: 0.10, green: 0.25, blue: 0.16, alpha: 1),
+        light: UIColor(red: 0.15, green: 0.27, blue: 0.18, alpha: 1),
         dark: UIColor(red: 0.32, green: 0.51, blue: 0.35, alpha: 1)
     )
     static let canvas = adaptive(
@@ -31,7 +31,7 @@ enum WeektableTheme {
         dark: UIColor(red: 0.70, green: 0.67, blue: 0.62, alpha: 1)
     )
     static let terracotta = adaptive(
-        light: UIColor(red: 0.78, green: 0.31, blue: 0.18, alpha: 1),
+        light: UIColor(red: 0.95, green: 0.39, blue: 0.11, alpha: 1),
         dark: UIColor(red: 0.94, green: 0.49, blue: 0.34, alpha: 1)
     )
     static let gold = adaptive(
@@ -78,9 +78,9 @@ enum WeektableTheme {
 }
 
 extension Font {
-    static let coveDisplay = Font.system(size: 36, weight: .bold, design: .rounded)
-    static let coveTitle = Font.system(size: 29, weight: .bold, design: .rounded)
-    static let coveCardTitle = Font.system(size: 20, weight: .bold, design: .rounded)
+    static let coveDisplay = Font.system(size: 38, weight: .semibold, design: .serif)
+    static let coveTitle = Font.system(size: 30, weight: .semibold, design: .serif)
+    static let coveCardTitle = Font.system(size: 21, weight: .semibold, design: .serif)
 }
 
 struct PrimaryButtonStyle: ButtonStyle {

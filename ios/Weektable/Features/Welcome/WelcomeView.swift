@@ -2,66 +2,148 @@ import SwiftUI
 
 struct WelcomeView: View {
     @Bindable var appModel: AppModel
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var accountMode: WelcomeAccountMode?
 
     var body: some View {
-        GeometryReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
+        ZStack {
+            Image("cove-welcome-kitchen")
+                .resizable()
+                .scaledToFill()
+                .ignoresSafeArea()
+                .accessibilityHidden(true)
+
+            Color.white.opacity(0.04)
+            .ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                Spacer(minLength: 82)
+
+                VStack(spacing: 12) {
                     CoveBrandMark()
-                        .padding(.top, 8)
+                        .scaleEffect(1.72)
+                        .padding(.bottom, 14)
 
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Your week, planned.")
-                            .font(dynamicTypeSize.isAccessibilitySize ? .largeTitle.bold() : .coveDisplay)
-                            .foregroundStyle(WeektableTheme.ink)
-                            .accessibilityAddTraits(.isHeader)
-
-                        Text("Tell Cove where you shop, what you want to spend, and how you like to eat. Cove plans the week around it.")
-                            .font(.body)
-                            .foregroundStyle(WeektableTheme.secondaryInk)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    CoveFoodMosaic(height: mosaicHeight(for: proxy.size.height))
-
-                    ViewThatFits(in: .horizontal) {
-                        HStack(spacing: 16) {
-                            welcomeFact("About 3 minutes", symbol: "clock")
-                            welcomeFact("No account needed", symbol: "person.crop.circle.badge.checkmark")
-                        }
-                        VStack(alignment: .leading, spacing: 10) {
-                            welcomeFact("About 3 minutes", symbol: "clock")
-                            welcomeFact("No account needed", symbol: "person.crop.circle.badge.checkmark")
-                        }
-                    }
+                    Text("Your week of food,\nfigured out.")
+                        .font(.system(size: 23, weight: .regular, design: .rounded))
+                        .foregroundStyle(WeektableTheme.ink)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(3)
+                        .accessibilityAddTraits(.isHeader)
                 }
-                .padding(.horizontal, WeektableTheme.pagePadding)
-                .padding(.bottom, 112)
-                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Spacer()
+
+                VStack(spacing: 14) {
+                    Button("Create account") { accountMode = .create }
+                        .buttonStyle(PrimaryButtonStyle())
+
+                    Button("Sign in") { accountMode = .signIn }
+                        .buttonStyle(WelcomeSecondaryButtonStyle())
+
+                    Button("Continue as guest") { appModel.completeWelcome() }
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(WeektableTheme.ink)
+                        .frame(minHeight: 44)
+                }
+                .padding(.horizontal, 32)
+
+                HStack(spacing: 18) {
+                    Circle().fill(WeektableTheme.brand).frame(width: 10, height: 10)
+                    Circle().fill(WeektableTheme.ink.opacity(0.14)).frame(width: 10, height: 10)
+                    Circle().fill(WeektableTheme.ink.opacity(0.14)).frame(width: 10, height: 10)
+                }
+                .padding(.top, 54)
+                .padding(.bottom, 22)
+                .accessibilityHidden(true)
             }
-            .scrollBounceBehavior(.basedOnSize)
         }
-        .background(WeektableTheme.canvas.ignoresSafeArea())
-        .safeAreaInset(edge: .bottom) {
-            Button("Plan my first week") { appModel.showPlanner() }
+        .sheet(item: $accountMode) { mode in
+            WelcomeAccountSheet(appModel: appModel, mode: mode)
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(30)
+        }
+    }
+}
+
+private enum WelcomeAccountMode: String, Identifiable {
+    case create
+    case signIn
+
+    var id: String { rawValue }
+    var title: String { self == .create ? "Create your Cove account" : "Welcome back" }
+    var actionTitle: String { self == .create ? "Create account" : "Sign in" }
+}
+
+private struct WelcomeAccountSheet: View {
+    @Bindable var appModel: AppModel
+    let mode: WelcomeAccountMode
+    @Environment(\.dismiss) private var dismiss
+    @State private var name = ""
+    @State private var email = ""
+    @State private var password = ""
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 18) {
+                if mode == .create {
+                    TextField("Name", text: $name)
+                        .textContentType(.name)
+                        .coveTextField()
+                }
+                TextField("Email", text: $email)
+                    .textContentType(.emailAddress)
+                    .textInputAutocapitalization(.never)
+                    .keyboardType(.emailAddress)
+                    .coveTextField()
+                SecureField("Password", text: $password)
+                    .textContentType(mode == .create ? .newPassword : .password)
+                    .coveTextField()
+
+                Text("Your planning data remains available on this device.")
+                    .font(.caption)
+                    .foregroundStyle(WeektableTheme.secondaryInk)
+
+                Button(mode.actionTitle) {
+                    dismiss()
+                    appModel.completeWelcome()
+                }
                 .buttonStyle(PrimaryButtonStyle())
-                .accessibilityHint("Starts the four-step dinner planner")
-                .padding(.horizontal, WeektableTheme.pagePadding)
-                .padding(.top, 12)
-                .padding(.bottom, 8)
-                .background(.ultraThinMaterial)
+                .disabled(email.isEmpty || password.isEmpty || (mode == .create && name.isEmpty))
+            }
+            .padding(WeektableTheme.pagePadding)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .background(WeektableTheme.canvas)
+            .navigationTitle(mode.title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
         }
     }
+}
 
-    private func mosaicHeight(for availableHeight: CGFloat) -> CGFloat {
-        if dynamicTypeSize.isAccessibilitySize { return 250 }
-        return min(340, max(260, availableHeight * 0.39))
+private struct WelcomeSecondaryButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.headline.weight(.semibold))
+            .frame(maxWidth: .infinity, minHeight: 56)
+            .foregroundStyle(WeektableTheme.ink)
+            .background(Color.white.opacity(configuration.isPressed ? 0.72 : 0.9))
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
+}
 
-    private func welcomeFact(_ text: String, symbol: String) -> some View {
-        Label(text, systemImage: symbol)
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(WeektableTheme.secondaryInk)
+private extension View {
+    func coveTextField() -> some View {
+        padding(.horizontal, 16)
+            .frame(minHeight: 54)
+            .background(WeektableTheme.raised, in: RoundedRectangle(cornerRadius: WeektableTheme.controlRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: WeektableTheme.controlRadius, style: .continuous)
+                    .stroke(WeektableTheme.divider, lineWidth: 1)
+            }
     }
 }

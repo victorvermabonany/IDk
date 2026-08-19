@@ -5,18 +5,32 @@ struct CoveBrandMark: View {
     var light = false
 
     var body: some View {
-        HStack(spacing: compact ? 8 : 10) {
-            Image(systemName: "fork.knife")
-                .font(.system(size: compact ? 13 : 16, weight: .black))
-                .frame(width: compact ? 30 : 36, height: compact ? 30 : 36)
-                .background(light ? Color.white.opacity(0.18) : WeektableTheme.brandDeep, in: RoundedRectangle(cornerRadius: compact ? 10 : 12, style: .continuous))
-                .foregroundStyle(.white)
+        HStack(alignment: .top, spacing: 2) {
             Text("Cove")
-                .font(.system(size: compact ? 18 : 22, weight: .bold, design: .rounded))
+                .font(.system(size: compact ? 24 : 34, weight: .medium, design: .serif))
                 .foregroundStyle(light ? .white : WeektableTheme.ink)
+            Image(systemName: "sparkle")
+                .font(.system(size: compact ? 7 : 9, weight: .bold))
+                .foregroundStyle(WeektableTheme.terracotta)
+                .padding(.top, compact ? 2 : 4)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Cove")
+    }
+}
+
+struct CoveOtterAvatar: View {
+    var size: CGFloat = 42
+
+    var body: some View {
+        Image("cove-otter-avatar")
+            .resizable()
+            .scaledToFill()
+            .frame(width: size, height: size)
+            .clipShape(Circle())
+            .overlay { Circle().stroke(Color.white.opacity(0.9), lineWidth: 2) }
+            .shadow(color: WeektableTheme.ink.opacity(0.10), radius: 6, y: 3)
+            .accessibilityLabel("Cove assistant")
     }
 }
 

@@ -16,6 +16,12 @@ struct MainTabView: View {
 
     var body: some View {
         TabView(selection: tabSelection) {
+            NavigationStack {
+                HomeView(appModel: appModel)
+            }
+            .tabItem { Label("Home", systemImage: "house") }
+            .tag(AppTab.home)
+
             NavigationStack(path: $appModel.weekNavigationPath) {
                 WeekHomeView(appModel: appModel)
             }
@@ -27,9 +33,19 @@ struct MainTabView: View {
             }
             .tabItem { Label("Groceries", systemImage: "cart") }
             .tag(AppTab.groceries)
+
+            NavigationStack {
+                PantryView(appModel: appModel)
+            }
+            .tabItem { Label("Pantry", systemImage: "cabinet") }
+            .tag(AppTab.pantry)
         }
+        .tint(WeektableTheme.terracotta)
         .toolbarBackground(WeektableTheme.raised, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
+        .fullScreenCover(isPresented: $appModel.assistantPresented) {
+            CoveAssistantView(appModel: appModel)
+        }
         .sheet(item: $appModel.swapMeal) { meal in
             MealSwapSheet(appModel: appModel, meal: meal)
                 .presentationDetents([.medium, .large])

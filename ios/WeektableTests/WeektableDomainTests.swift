@@ -9,7 +9,7 @@ final class WeektableDomainTests: XCTestCase {
         )
         XCTAssertEqual(
             RootFlow.restored(hasCompletedWelcome: true, hasCachedPlan: false, hasPendingGeneration: false),
-            .planner
+            .main
         )
         XCTAssertEqual(
             RootFlow.restored(hasCompletedWelcome: false, hasCachedPlan: true, hasPendingGeneration: false),
@@ -27,11 +27,11 @@ final class WeektableDomainTests: XCTestCase {
             let firstLaunch = AppModel(repository: DemoPlanRepository(), persistence: persistence, subscriptions: SubscriptionService())
             XCTAssertEqual(firstLaunch.rootFlow, .welcome)
 
-            firstLaunch.showPlanner()
-            XCTAssertEqual(firstLaunch.rootFlow, .planner)
+            firstLaunch.completeWelcome()
+            XCTAssertEqual(firstLaunch.rootFlow, .main)
 
             let relaunch = AppModel(repository: DemoPlanRepository(), persistence: persistence, subscriptions: SubscriptionService())
-            XCTAssertEqual(relaunch.rootFlow, .planner)
+            XCTAssertEqual(relaunch.rootFlow, .main)
         }
     }
 

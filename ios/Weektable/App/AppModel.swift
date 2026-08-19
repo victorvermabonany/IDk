@@ -15,13 +15,15 @@ enum RootFlow: Equatable {
     ) -> RootFlow {
         if hasPendingGeneration { return .generation }
         if hasCachedPlan { return .main }
-        return hasCompletedWelcome ? .planner : .welcome
+        return hasCompletedWelcome ? .main : .welcome
     }
 }
 
 enum AppTab: Hashable {
+    case home
     case week
     case groceries
+    case pantry
 }
 
 enum StoreSearchState: Equatable {
@@ -36,7 +38,7 @@ enum StoreSearchState: Equatable {
 @Observable
 final class AppModel {
     var rootFlow: RootFlow = .welcome
-    var selectedTab: AppTab = .week
+    var selectedTab: AppTab = .home
     var plannerDraft = PlannerRequest()
     var plan: MealPlan?
     var groceryState = GroceryState()
@@ -53,6 +55,7 @@ final class AppModel {
     var weekNavigationPath: [String] = []
     var paywallTrigger: PremiumFeature?
     var settingsPresented = false
+    var assistantPresented = false
     var completedPlanCount = 0
     var completedSwapCount = 0
     var entitlementCache = EntitlementCache()
@@ -94,6 +97,13 @@ final class AppModel {
         try? persistence.save(true, key: PersistenceKey.hasCompletedWelcome)
         rootFlow = .planner
         Task { await analytics.track(.plannerStarted) }
+        Haptics.selection()
+    }
+
+    func completeWelcome() {
+        try? persistence.save(true, key: PersistenceKey.hasCompletedWelcome)
+        selectedTab = .home
+        rootFlow = .main
         Haptics.selection()
     }
 
@@ -194,6 +204,21 @@ final class AppModel {
         Haptics.selection()
     }
 
+    func selectWeek() {
+        selectedTab = .week
+        Haptics.selection()
+    }
+
+    func selectPantry() {
+        selectedTab = .pantry
+        Haptics.selection()
+    }
+
+    func presentAssistant() {
+        assistantPresented = true
+        Haptics.selection()
+    }
+
     func toggleChecked(_ itemID: String) {
         let previousState = groceryState
         if groceryState.checkedItemIDs.contains(itemID) {
@@ -284,7 +309,7 @@ final class AppModel {
     func startPlannerForAnotherWeek() {
         paywallTrigger = nil
         weekNavigationPath.removeAll()
-        selectedTab = .week
+        selectedTab = .home
         rootFlow = .planner
     }
 
@@ -320,7 +345,7 @@ final class AppModel {
             ownedItemIDs: Set(generatedPlan.basket.filter(\.pantryStatus).map(\.id))
         )
         persistGroceryState()
-        selectedTab = .week
+        selectedTab = .home
         rootFlow = .main
         completedPlanCount += 1
         try? persistence.save(completedPlanCount, key: PersistenceKey.completedPlanCount)

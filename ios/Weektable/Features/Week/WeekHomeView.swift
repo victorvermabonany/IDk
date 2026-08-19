@@ -2,50 +2,61 @@ import SwiftUI
 
 struct WeekHomeView: View {
     @Bindable var appModel: AppModel
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 22) {
-                if let plan = appModel.plan {
-                    weekSummary(plan)
+            LazyVStack(alignment: .leading, spacing: 14) {
+                WeekDateStrip()
 
-                    HStack(alignment: .firstTextBaseline) {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("Meals this week")
-                                .font(.coveTitle)
-                            Text("\(plan.meals.count) dinners · \(plan.totalMinutes) minutes total")
-                                .font(.subheadline)
-                                .foregroundStyle(WeektableTheme.secondaryInk)
-                        }
+                if let plan = appModel.plan {
+                    HStack {
+                        Text("\(plan.meals.count) dinners · \(plan.totalMinutes) minutes total")
+                            .font(.subheadline)
+                            .foregroundStyle(WeektableTheme.secondaryInk)
                         Spacer()
                     }
 
+                    budgetSummary(plan)
+
                     ForEach(Array(plan.meals.enumerated()), id: \.element.id) { index, meal in
-                        MealCard(
+                        WeekMealRow(
                             meal: meal,
                             estimatedCostCents: estimatedCost(for: meal, in: plan),
-                            featured: index == 0,
-                            accent: WeektableTheme.preferenceAccent(at: index),
+                            isTonight: index == 0,
                             onSwap: { appModel.openSwap(for: meal) }
                         )
                     }
 
                     PriceSourceNotice(plan: plan)
-                        .padding(.bottom, 20)
+                        .padding(.top, 4)
+                        .padding(.bottom, 18)
                 } else {
-                    ContentUnavailableView(
-                        "No week yet",
-                        systemImage: "calendar.badge.plus",
-                        description: Text("Create a plan to see your dinners here.")
-                    )
+                    VStack(spacing: 14) {
+                        Image("weektable-dinners")
+                            .resizable()
+                            .scaledToFill()
+                            .frame(height: 210)
+                            .clipped()
+                            .clipShape(RoundedRectangle(cornerRadius: WeektableTheme.cardRadius, style: .continuous))
+                            .accessibilityHidden(true)
+                        Text("No week planned yet")
+                            .font(.coveCardTitle)
+                        Text("Start with your budget, household, and food preferences. Cove will build the rest.")
+                            .font(.subheadline)
+                            .foregroundStyle(WeektableTheme.secondaryInk)
+                            .multilineTextAlignment(.center)
+                        Button("Plan a new week") { appModel.showPlanner() }
+                            .buttonStyle(PrimaryButtonStyle())
+                    }
+                    .padding(18)
+                    .coveCard()
                 }
             }
             .padding(.horizontal, WeektableTheme.pagePadding)
-            .padding(.top, 10)
+            .padding(.top, 6)
         }
-        .background(WeektableTheme.canvas)
-        .navigationTitle("Week")
+        .background(WeektableTheme.canvas.ignoresSafeArea())
+        .navigationTitle("My Week")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: String.self) { mealID in
             if let meal = appModel.plan?.meals.first(where: { $0.id == mealID }) {
@@ -53,98 +64,37 @@ struct WeekHomeView: View {
             }
         }
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                CoveBrandMark(compact: true)
-            }
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                Button("Plan another week", systemImage: "plus") { appModel.planAnotherWeek() }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Plan another week", systemImage: "calendar.badge.plus") { appModel.planAnotherWeek() }
                     .labelStyle(.iconOnly)
                     .accessibilityHint("Starts a new weekly plan")
-                Button("Settings", systemImage: "person.crop.circle") { appModel.presentSettings() }
-                    .labelStyle(.iconOnly)
             }
         }
     }
 
-    private func weekSummary(_ plan: MealPlan) -> some View {
-        VStack(spacing: 0) {
-            ZStack(alignment: .bottomLeading) {
-                Image("weektable-dinners")
-                    .resizable()
-                    .scaledToFill()
-                    .frame(height: dynamicTypeSize.isAccessibilitySize ? 260 : 215)
-                    .clipped()
-                    .accessibilityHidden(true)
-
-                LinearGradient(
-                    colors: [.clear, WeektableTheme.ink.opacity(0.74)],
-                    startPoint: .center,
-                    endPoint: .bottom
-                )
-
-                HStack {
-                    Text("THIS WEEK")
-                        .font(.caption2.weight(.black))
-                        .tracking(1.1)
-                    Spacer()
-                    Text("\(plan.meals.count) dinners")
-                        .font(.subheadline.weight(.bold))
+    private func budgetSummary(_ plan: MealPlan) -> some View {
+        VStack(spacing: 11) {
+            HStack(alignment: .lastTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Current grocery spend")
+                        .font(.caption)
+                        .foregroundStyle(WeektableTheme.secondaryInk)
+                    Text(appModel.groceryTotalCents.currency)
+                        .font(.system(size: 25, weight: .semibold, design: .serif))
+                        .monospacedDigit()
                 }
-                .foregroundStyle(.white)
-                .padding(18)
+                Spacer()
+                Text("\(max(plan.budgetCents - appModel.groceryTotalCents, 0).currency) left")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(WeektableTheme.brand)
             }
-
-            VStack(alignment: .leading, spacing: 16) {
-                HStack(alignment: .lastTextBaseline) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Grocery basket")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(WeektableTheme.secondaryInk)
-                        HStack(alignment: .lastTextBaseline, spacing: 4) {
-                            Text(plan.estimatedTotalCents.currency)
-                                .font(.system(size: 31, weight: .bold, design: .rounded))
-                                .monospacedDigit()
-                                .contentTransition(.numericText())
-                            Text("of \(plan.budgetCents.currency)")
-                                .font(.subheadline)
-                                .foregroundStyle(WeektableTheme.secondaryInk)
-                        }
-                    }
-                    Spacer()
-                    CoveStatusPill(
-                        text: "\(plan.remainingCents.currency) left",
-                        symbol: plan.remainingCents >= 0 ? "checkmark" : "exclamationmark",
-                        color: plan.remainingCents >= 0 ? WeektableTheme.success : WeektableTheme.error
-                    )
-                }
-
-                ProgressView(value: Double(plan.estimatedTotalCents), total: Double(max(plan.budgetCents, 1)))
-                    .tint(plan.remainingCents >= 0 ? WeektableTheme.brand : WeektableTheme.error)
-                    .scaleEffect(x: 1, y: 1.35)
-                    .accessibilityLabel("Weekly grocery budget")
-                    .accessibilityValue("\(plan.estimatedTotalCents.currency) of \(plan.budgetCents.currency)")
-
-                Button {
-                    appModel.selectGroceries()
-                } label: {
-                    Label("Open grocery list", systemImage: "cart.fill")
-                        .font(.subheadline.bold())
-                        .frame(maxWidth: .infinity, minHeight: 48)
-                }
-                .foregroundStyle(WeektableTheme.brandDeep)
-                .background(WeektableTheme.selected, in: RoundedRectangle(cornerRadius: 15))
-                .accessibilityHint("Opens the grocery list tab")
-            }
-            .padding(18)
-            .background(WeektableTheme.raised)
+            ProgressView(value: Double(appModel.groceryTotalCents), total: Double(max(plan.budgetCents, 1)))
+                .tint(WeektableTheme.brand)
         }
-        .clipShape(RoundedRectangle(cornerRadius: WeektableTheme.heroRadius, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: WeektableTheme.heroRadius, style: .continuous)
-                .stroke(WeektableTheme.divider, lineWidth: 0.75)
-        }
-        .shadow(color: WeektableTheme.ink.opacity(0.09), radius: 18, y: 9)
-        .accessibilityElement(children: .contain)
+        .padding(15)
+        .background(WeektableTheme.surface.opacity(0.7), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Current grocery spend \(appModel.groceryTotalCents.currency) of \(plan.budgetCents.currency)")
     }
 
     private func estimatedCost(for meal: Meal, in plan: MealPlan) -> Int {
@@ -155,111 +105,94 @@ struct WeekHomeView: View {
     }
 }
 
-private struct MealCard: View {
+private struct WeekDateStrip: View {
+    private let dates: [Date] = {
+        let calendar = Calendar.current
+        let start = calendar.dateInterval(of: .weekOfYear, for: .now)?.start ?? .now
+        return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
+    }()
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(Array(dates.enumerated()), id: \.offset) { index, date in
+                VStack(spacing: 7) {
+                    Text(date.formatted(.dateTime.weekday(.narrow)))
+                        .font(.caption.weight(.semibold))
+                    Text(date.formatted(.dateTime.day()))
+                        .font(.caption)
+                }
+                .foregroundStyle(index == 0 ? .white : WeektableTheme.ink)
+                .frame(maxWidth: .infinity, minHeight: 55)
+                .background(index == 0 ? WeektableTheme.terracotta : Color.clear, in: Capsule())
+            }
+        }
+        .padding(8)
+        .background(WeektableTheme.raised, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .shadow(color: WeektableTheme.ink.opacity(0.045), radius: 12, y: 5)
+        .accessibilityElement(children: .contain)
+    }
+}
+
+private struct WeekMealRow: View {
     let meal: Meal
     let estimatedCostCents: Int
-    let featured: Bool
-    let accent: Color
+    let isTonight: Bool
     let onSwap: () -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
+        HStack(spacing: 10) {
             NavigationLink(value: meal.id) {
-                if featured {
-                    featuredContent
-                } else {
-                    compactContent
+                HStack(spacing: 14) {
+                    MealPhoto(meal: meal)
+                        .frame(width: 116, height: 112)
+                        .clipped()
+                        .overlay(alignment: .topLeading) {
+                            Text(isTonight ? "TODAY" : shortDay)
+                                .font(.caption2.weight(.black))
+                                .foregroundStyle(WeektableTheme.ink)
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 6)
+                                .background((isTonight ? WeektableTheme.gold : WeektableTheme.raised).opacity(0.94), in: Capsule())
+                                .padding(8)
+                        }
+                        .clipShape(RoundedRectangle(cornerRadius: 17, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 7) {
+                        Text(meal.title)
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(WeektableTheme.ink)
+                            .lineLimit(3)
+                        Text("~\(estimatedCostCents.currency)")
+                            .font(.subheadline)
+                            .foregroundStyle(WeektableTheme.brand)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
             .buttonStyle(.plain)
 
-            Divider().padding(.leading, featured ? 16 : 134)
-
-            Button(action: onSwap) {
-                HStack {
-                    Label("Swap dinner", systemImage: "arrow.triangle.2.circlepath")
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.caption.bold())
-                        .foregroundStyle(WeektableTheme.secondaryInk)
+            VStack(alignment: .trailing, spacing: 15) {
+                Text("\(meal.totalMinutes) min")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(WeektableTheme.terracotta)
+                    .monospacedDigit()
+                Button(action: onSwap) {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(WeektableTheme.brand)
+                        .frame(width: 42, height: 42)
+                        .background(WeektableTheme.selected, in: Circle())
                 }
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(WeektableTheme.brandDeep)
-                .padding(.horizontal, 16)
-                .frame(minHeight: 48)
+                .accessibilityLabel("Swap \(meal.title)")
             }
-            .accessibilityHint("Shows alternatives and basket price changes")
         }
-        .coveCard()
+        .padding(10)
+        .coveCard(radius: 20)
         .accessibilityElement(children: .contain)
     }
 
-    private var featuredContent: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            MealPhoto(meal: meal)
-                .frame(height: 220)
-                .clipped()
-                .overlay(alignment: .topLeading) { dayPill }
-
-            VStack(alignment: .leading, spacing: 9) {
-                Text(meal.title)
-                    .font(.coveCardTitle)
-                Text(meal.description)
-                    .font(.subheadline)
-                    .foregroundStyle(WeektableTheme.secondaryInk)
-                    .lineLimit(2)
-                metadata
-            }
-            .padding(16)
-        }
-    }
-
-    private var compactContent: some View {
-        HStack(alignment: .top, spacing: 14) {
-            MealPhoto(meal: meal)
-                .frame(width: 118, height: 132)
-                .clipped()
-                .overlay(alignment: .topLeading) { dayPill }
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 9) {
-                Text(meal.title)
-                    .font(.headline)
-                    .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
-                metadata
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 10)
-            .padding(.trailing, 14)
-        }
-        .padding(10)
-    }
-
-    private var dayPill: some View {
-        Text(meal.day.uppercased())
-            .font(.caption2.weight(.black))
-            .tracking(0.7)
-            .foregroundStyle(WeektableTheme.ink)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(WeektableTheme.raised.opacity(0.94), in: Capsule())
-            .padding(11)
-    }
-
-    private var metadata: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 8) {
-                CoveStatusPill(text: "\(meal.totalMinutes)m", symbol: "clock", color: accent)
-                CoveStatusPill(text: "~\(estimatedCostCents.currency)", symbol: "basket", color: WeektableTheme.brand)
-            }
-            VStack(alignment: .leading, spacing: 6) {
-                CoveStatusPill(text: "\(meal.totalMinutes)m", symbol: "clock", color: accent)
-                CoveStatusPill(text: "~\(estimatedCostCents.currency)", symbol: "basket", color: WeektableTheme.brand)
-            }
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(meal.totalMinutes) minutes. About \(estimatedCostCents.currency) of the shared basket.")
+    private var shortDay: String {
+        String(meal.day.prefix(3)).uppercased()
     }
 }
 

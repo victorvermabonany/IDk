@@ -1,26 +1,24 @@
 import XCTest
 
 final class WeektableUITests: XCTestCase {
-    func testWelcomeCompletesOnceAndRelaunchesIntoPlanner() {
+    func testWelcomeCompletesOnceAndRelaunchesIntoHome() {
         let app = XCUIApplication()
         app.launchArguments = ["-cove-ui-test-reset"]
         app.launch()
 
-        XCTAssertTrue(app.staticTexts["Your week, planned."].waitForExistence(timeout: 2))
-        XCTAssertTrue(app.buttons["Plan my first week"].exists)
+        XCTAssertTrue(app.staticTexts["Your week of food,\nfigured out."].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.buttons["Continue as guest"].exists)
 
-        app.buttons["Plan my first week"].tap()
-        XCTAssertTrue(app.staticTexts["Where do you shop?"].waitForExistence(timeout: 2))
-        XCTAssertTrue(app.buttons["Find stores"].exists)
-        XCTAssertFalse(app.buttons["Close"].exists)
+        app.buttons["Continue as guest"].tap()
+        XCTAssertTrue(app.tabBars.buttons["Home"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.buttons["Plan a new week"].exists)
 
         app.terminate()
         app.launchArguments = []
         app.launch()
 
-        XCTAssertTrue(app.staticTexts["Where do you shop?"].waitForExistence(timeout: 2))
-        XCTAssertFalse(app.buttons["Plan my first week"].exists)
-        XCTAssertFalse(app.buttons["Close"].exists)
+        XCTAssertTrue(app.tabBars.buttons["Home"].waitForExistence(timeout: 2))
+        XCTAssertFalse(app.buttons["Continue as guest"].exists)
     }
 
     func testActivePlanRelaunchesIntoWeek() {
@@ -29,7 +27,9 @@ final class WeektableUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.tabBars.buttons["Week"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.tabBars.buttons["Home"].exists)
         XCTAssertTrue(app.tabBars.buttons["Groceries"].exists)
-        XCTAssertFalse(app.buttons["Plan my first week"].exists)
+        XCTAssertTrue(app.tabBars.buttons["Pantry"].exists)
+        XCTAssertFalse(app.buttons["Continue as guest"].exists)
     }
 }
