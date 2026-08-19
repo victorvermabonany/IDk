@@ -256,7 +256,8 @@ private struct GroceryRow: View {
                         .font(.caption)
                         .foregroundStyle(WeektableTheme.secondaryInk)
                 }
-                .frame(width: 76, minHeight: 44, alignment: .trailing)
+                .frame(width: 76, alignment: .trailing)
+                .frame(minHeight: 44)
             }
             .accessibilityLabel("\(isOwned ? "On hand" : item.totalPriceCents.currency), options for \(item.productName)")
         }

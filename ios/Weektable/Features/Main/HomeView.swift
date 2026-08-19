@@ -32,10 +32,12 @@ struct HomeView: View {
                 assistantBar
                     .padding(.bottom, WeektableTheme.spacingM)
 
-                if let plan {
-                    weekHero(plan)
-                } else {
-                    emptyWeekHero
+                Group {
+                    if let plan {
+                        weekHero(plan)
+                    } else {
+                        emptyWeekHero
+                    }
                 }
                 .padding(.bottom, WeektableTheme.spacingM)
 
