@@ -206,6 +206,8 @@ jobs:
           }
 
           PLIST='Weektable/Configuration/Info.plist'
+          /usr/libexec/PlistBuddy -c 'Delete :ITSAppUsesNonExemptEncryption' "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c 'Add :ITSAppUsesNonExemptEncryption bool false' "$PLIST"
           /usr/libexec/PlistBuddy -c 'Delete :UISupportedInterfaceOrientations~ipad' "$PLIST" 2>/dev/null || true
           /usr/libexec/PlistBuddy -c 'Add :UISupportedInterfaceOrientations~ipad array' "$PLIST"
           /usr/libexec/PlistBuddy -c 'Add :UISupportedInterfaceOrientations~ipad:0 string UIInterfaceOrientationPortrait' "$PLIST"
@@ -339,6 +341,7 @@ jobs:
           [[ "$(read_key CFBundleIdentifier)" == "$COVE_BUNDLE_ID" ]] || exit 1
           [[ "$(read_key CFBundleVersion)" == "$COVE_BUILD_NUMBER" ]] || exit 1
           [[ "$(read_key COVE_RUNTIME_MODE)" == "PRODUCTION_LIVE" ]] || exit 1
+          [[ "$(read_key ITSAppUsesNonExemptEncryption)" == "false" ]] || exit 1
 
           PROFILE_PATH="$APP_PATH/embedded.mobileprovision"
           PROFILE_PLIST="$RUNNER_TEMP/cove-app-store-profile.plist"
