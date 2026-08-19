@@ -169,7 +169,7 @@ jobs:
             exit 1
           }
 
-          "$OPENSSL_BIN" pkey -in "$PRIVATE_KEY" -pubout 2>/dev/null \
+          "$OPENSSL_BIN" pkey -in "$PRIVATE_KEY" -pubout -outform DER 2>/dev/null \
             | "$OPENSSL_BIN" dgst -sha256 \
             | sed 's/^.*= //' \
             | grep -qx "$CSR_PUBLIC_KEY_SHA256"
