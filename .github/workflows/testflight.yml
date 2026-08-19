@@ -36,6 +36,7 @@ jobs:
     timeout-minutes: 45
     env:
       APPLE_DISTRIBUTION_P12_B64: ${{ secrets.APPLE_DISTRIBUTION_P12_B64 }}
+      APPLE_APP_STORE_PROVISIONING_PROFILE_B64: ${{ secrets.APPLE_APP_STORE_PROVISIONING_PROFILE_B64 }}
       APPLE_SIGNING_PASSWORD: ${{ secrets.APPLE_CERT_PRIVATE_KEY_PASSWORD }}
       APP_STORE_CONNECT_API_KEY_B64: ${{ secrets.APP_STORE_CONNECT_API_KEY_B64 }}
       APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
@@ -51,6 +52,10 @@ jobs:
           set -euo pipefail
           [[ -n "$APPLE_DISTRIBUTION_P12_B64" ]] || {
             echo "APPLE_DISTRIBUTION_P12_B64 is not configured." >&2
+            exit 1
+          }
+          [[ -n "$APPLE_APP_STORE_PROVISIONING_PROFILE_B64" ]] || {
+            echo "APPLE_APP_STORE_PROVISIONING_PROFILE_B64 is not configured." >&2
             exit 1
           }
           [[ ${#APPLE_SIGNING_PASSWORD} -ge 24 ]] || {
@@ -83,7 +88,7 @@ jobs:
           }
           echo "COVE_BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
 
-      - name: Install the signing identity and API key
+      - name: Install the signing identity, provisioning profile, and API key
         shell: bash
         run: |
           set -euo pipefail
@@ -93,13 +98,16 @@ jobs:
           P12_PATH="$SIGNING_DIR/Cove-Apple-Distribution.p12"
           KEYCHAIN_PATH="$SIGNING_DIR/cove-testflight.keychain-db"
           API_KEY_PATH="$SIGNING_DIR/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+          PROFILE_SOURCE="$SIGNING_DIR/Cove-App-Store.mobileprovision"
+          PROFILE_PLIST="$SIGNING_DIR/Cove-App-Store.plist"
           KEYCHAIN_PASSWORD="$(openssl rand -base64 48 | tr -d '\n')"
 
           mkdir -p "$SIGNING_DIR"
           chmod 700 "$SIGNING_DIR"
           printf '%s' "$APPLE_DISTRIBUTION_P12_B64" | /usr/bin/base64 -D > "$P12_PATH"
           printf '%s' "$APP_STORE_CONNECT_API_KEY_B64" | /usr/bin/base64 -D > "$API_KEY_PATH"
-          chmod 600 "$P12_PATH" "$API_KEY_PATH"
+          printf '%s' "$APPLE_APP_STORE_PROVISIONING_PROFILE_B64" | /usr/bin/base64 -D > "$PROFILE_SOURCE"
+          chmod 600 "$P12_PATH" "$API_KEY_PATH" "$PROFILE_SOURCE"
 
           grep -q '^-----BEGIN PRIVATE KEY-----$' "$API_KEY_PATH" || {
             echo "The App Store Connect API key is not a PKCS8 private key." >&2
@@ -126,8 +134,42 @@ jobs:
             exit 1
           }
 
+          security cms -D -i "$PROFILE_SOURCE" > "$PROFILE_PLIST"
+          read_profile() { /usr/libexec/PlistBuddy -c "Print :$1" "$PROFILE_PLIST"; }
+          [[ "$(read_profile TeamIdentifier:0)" == "$APPLE_TEAM_ID" ]] || {
+            echo "The provisioning profile belongs to a different Apple team." >&2
+            exit 1
+          }
+          [[ "$(read_profile Entitlements:application-identifier)" == "$APPLE_TEAM_ID.$COVE_BUNDLE_ID" ]] || {
+            echo "The provisioning profile does not authorize $COVE_BUNDLE_ID." >&2
+            exit 1
+          }
+          [[ "$(read_profile Entitlements:get-task-allow)" == "false" ]] || {
+            echo "The configured provisioning profile is not for App Store distribution." >&2
+            exit 1
+          }
+          if /usr/libexec/PlistBuddy -c 'Print :ProvisionedDevices' "$PROFILE_PLIST" >/dev/null 2>&1; then
+            echo "The configured provisioning profile is device-limited." >&2
+            exit 1
+          fi
+
+          PROFILE_NAME="$(read_profile Name)"
+          PROFILE_UUID="$(read_profile UUID)"
+          [[ "$PROFILE_NAME" == "Cove App Store Connect" ]] || {
+            echo "The configured provisioning profile has an unexpected name." >&2
+            exit 1
+          }
+          PROFILE_INSTALL_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          PROFILE_DESTINATION="$PROFILE_INSTALL_DIR/$PROFILE_UUID.mobileprovision"
+          mkdir -p "$PROFILE_INSTALL_DIR"
+          cp "$PROFILE_SOURCE" "$PROFILE_DESTINATION"
+          chmod 600 "$PROFILE_DESTINATION"
+
           echo "COVE_KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
           echo "COVE_API_KEY_PATH=$API_KEY_PATH" >> "$GITHUB_ENV"
+          echo "COVE_PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
+          echo "COVE_PROFILE_UUID=$PROFILE_UUID" >> "$GITHUB_ENV"
+          echo "COVE_PROFILE_PATH=$PROFILE_DESTINATION" >> "$GITHUB_ENV"
 
       - name: Install XcodeGen
         shell: bash
@@ -138,7 +180,7 @@ jobs:
         shell: bash
         run: xcodegen generate
 
-      - name: Archive Cove with automatic App Store provisioning
+      - name: Archive Cove with the App Store provisioning profile
         working-directory: ios
         shell: bash
         run: |
@@ -152,12 +194,10 @@ jobs:
             -destination 'generic/platform=iOS' \
             -archivePath build/Cove.xcarchive \
             -derivedDataPath build/TestFlightDerivedData \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$COVE_API_KEY_PATH" \
-            -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" \
-            -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            CODE_SIGN_STYLE=Automatic \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY='Apple Distribution' \
+            PROVISIONING_PROFILE_SPECIFIER="$COVE_PROFILE_NAME" \
             PRODUCT_BUNDLE_IDENTIFIER="$COVE_BUNDLE_ID" \
             CURRENT_PROJECT_VERSION="$COVE_BUILD_NUMBER" \
             COVE_RUNTIME_MODE="$COVE_RUNTIME_MODE" \
@@ -205,9 +245,14 @@ jobs:
             <key>method</key>
             <string>app-store-connect</string>
             <key>signingStyle</key>
-            <string>automatic</string>
+            <string>manual</string>
             <key>signingCertificate</key>
             <string>Apple Distribution</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>$COVE_BUNDLE_ID</key>
+              <string>$COVE_PROFILE_NAME</string>
+            </dict>
             <key>stripSwiftSymbols</key>
             <true/>
             <key>teamID</key>
@@ -317,9 +362,14 @@ jobs:
             <key>method</key>
             <string>app-store-connect</string>
             <key>signingStyle</key>
-            <string>automatic</string>
+            <string>manual</string>
             <key>signingCertificate</key>
             <string>Apple Distribution</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>$COVE_BUNDLE_ID</key>
+              <string>$COVE_PROFILE_NAME</string>
+            </dict>
             <key>teamID</key>
             <string>$APPLE_TEAM_ID</string>
             <key>uploadSymbols</key>
@@ -371,6 +421,9 @@ jobs:
         shell: bash
         run: |
           security delete-keychain "$RUNNER_TEMP/cove-testflight-signing/cove-testflight.keychain-db" >/dev/null 2>&1 || true
+          if [[ -n "${COVE_PROFILE_PATH:-}" ]]; then
+            rm -f "$COVE_PROFILE_PATH"
+          fi
           rm -rf "$RUNNER_TEMP/cove-testflight-signing"
           rm -f "$RUNNER_TEMP/Cove-App-Store-ExportOptions.plist"
           rm -f "$RUNNER_TEMP/Cove-TestFlight-UploadOptions.plist"
