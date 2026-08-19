@@ -1,0 +1,374 @@
+name: "TestFlight: Archive, sign, and upload Cove"
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: Optional numeric CFBundleVersion; UTC timestamp is used when blank
+        required: false
+        type: string
+      upload_to_testflight:
+        description: Upload the validated archive to App Store Connect
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cove-testflight
+  cancel-in-progress: false
+
+env:
+  APPLE_TEAM_ID: 7463H7378K
+  COVE_BUNDLE_ID: com.weektable.ios
+  COVE_RUNTIME_MODE: PRODUCTION_LIVE
+  COVE_API_BASE_URL: ${{ vars.COVE_API_BASE_URL || 'https://cove-planner-delta.vercel.app' }}
+  COVE_PRIVACY_URL: ${{ vars.COVE_PRIVACY_URL || 'https://cove-planner-delta.vercel.app/privacy' }}
+  COVE_TERMS_URL: ${{ vars.COVE_TERMS_URL || 'https://cove-planner-delta.vercel.app/terms' }}
+  COVE_SUPPORT_URL: ${{ vars.COVE_SUPPORT_URL || 'https://cove-planner-delta.vercel.app/support' }}
+
+jobs:
+  archive-and-upload:
+    name: Signed App Store archive and TestFlight upload
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      APPLE_DISTRIBUTION_P12_B64: ${{ secrets.APPLE_DISTRIBUTION_P12_B64 }}
+      APPLE_SIGNING_PASSWORD: ${{ secrets.APPLE_CERT_PRIVATE_KEY_PASSWORD }}
+      APP_STORE_CONNECT_API_KEY_B64: ${{ secrets.APP_STORE_CONNECT_API_KEY_B64 }}
+      APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+
+    steps:
+      - name: Check out Cove
+        uses: actions/checkout@v4
+
+      - name: Validate signing and App Store Connect secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "$APPLE_DISTRIBUTION_P12_B64" ]] || {
+            echo "APPLE_DISTRIBUTION_P12_B64 is not configured." >&2
+            exit 1
+          }
+          [[ ${#APPLE_SIGNING_PASSWORD} -ge 24 ]] || {
+            echo "APPLE_CERT_PRIVATE_KEY_PASSWORD must contain at least 24 characters." >&2
+            exit 1
+          }
+          [[ -n "$APP_STORE_CONNECT_API_KEY_B64" ]] || {
+            echo "APP_STORE_CONNECT_API_KEY_B64 is not configured." >&2
+            exit 1
+          }
+          [[ "$APP_STORE_CONNECT_KEY_ID" =~ ^[A-Z0-9]{10}$ ]] || {
+            echo "APP_STORE_CONNECT_KEY_ID is invalid." >&2
+            exit 1
+          }
+          [[ "$APP_STORE_CONNECT_ISSUER_ID" =~ ^[0-9a-fA-F-]{36}$ ]] || {
+            echo "APP_STORE_CONNECT_ISSUER_ID is invalid." >&2
+            exit 1
+          }
+
+      - name: Select build number
+        shell: bash
+        env:
+          REQUESTED_BUILD_NUMBER: ${{ inputs.build_number }}
+        run: |
+          set -euo pipefail
+          BUILD_NUMBER="${REQUESTED_BUILD_NUMBER:-$(date -u +%Y%m%d%H%M)}"
+          [[ "$BUILD_NUMBER" =~ ^[0-9]{1,18}$ ]] || {
+            echo "The build number must contain 1-18 digits." >&2
+            exit 1
+          }
+          echo "COVE_BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
+
+      - name: Install the signing identity and API key
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+
+          SIGNING_DIR="$RUNNER_TEMP/cove-testflight-signing"
+          P12_PATH="$SIGNING_DIR/Cove-Apple-Distribution.p12"
+          KEYCHAIN_PATH="$SIGNING_DIR/cove-testflight.keychain-db"
+          API_KEY_PATH="$SIGNING_DIR/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 48 | tr -d '\n')"
+
+          mkdir -p "$SIGNING_DIR"
+          chmod 700 "$SIGNING_DIR"
+          printf '%s' "$APPLE_DISTRIBUTION_P12_B64" | /usr/bin/base64 -D > "$P12_PATH"
+          printf '%s' "$APP_STORE_CONNECT_API_KEY_B64" | /usr/bin/base64 -D > "$API_KEY_PATH"
+          chmod 600 "$P12_PATH" "$API_KEY_PATH"
+
+          grep -q '^-----BEGIN PRIVATE KEY-----$' "$API_KEY_PATH" || {
+            echo "The App Store Connect API key is not a PKCS8 private key." >&2
+            exit 1
+          }
+          openssl ec -in "$API_KEY_PATH" -noout -check >/dev/null 2>&1
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+          security default-keychain -d user -s "$KEYCHAIN_PATH"
+          security import "$P12_PATH" \
+            -k "$KEYCHAIN_PATH" \
+            -P "$APPLE_SIGNING_PASSWORD" \
+            -A >/dev/null
+
+          SIGNING_IDENTITY_SHA1="$(
+            security find-identity -v -p codesigning "$KEYCHAIN_PATH" \
+              | awk '/Apple Distribution/ { print $2; exit }'
+          )"
+          [[ -n "$SIGNING_IDENTITY_SHA1" ]] || {
+            echo "The Apple Distribution identity could not be imported." >&2
+            exit 1
+          }
+
+          echo "COVE_KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+          echo "COVE_API_KEY_PATH=$API_KEY_PATH" >> "$GITHUB_ENV"
+
+      - name: Install XcodeGen
+        shell: bash
+        run: brew install xcodegen
+
+      - name: Generate the Xcode project
+        working-directory: ios
+        shell: bash
+        run: xcodegen generate
+
+      - name: Archive Cove with automatic App Store provisioning
+        working-directory: ios
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          set -o pipefail
+          xcodebuild archive \
+            -project Weektable.xcodeproj \
+            -scheme Weektable \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/Cove.xcarchive \
+            -derivedDataPath build/TestFlightDerivedData \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$COVE_API_KEY_PATH" \
+            -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" \
+            -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_STYLE=Automatic \
+            CODE_SIGN_IDENTITY='Apple Distribution' \
+            PRODUCT_BUNDLE_IDENTIFIER="$COVE_BUNDLE_ID" \
+            CURRENT_PROJECT_VERSION="$COVE_BUILD_NUMBER" \
+            COVE_RUNTIME_MODE="$COVE_RUNTIME_MODE" \
+            COVE_API_BASE_URL="$COVE_API_BASE_URL" \
+            COVE_PRIVACY_URL="$COVE_PRIVACY_URL" \
+            COVE_TERMS_URL="$COVE_TERMS_URL" \
+            COVE_SUPPORT_URL="$COVE_SUPPORT_URL" \
+            | tee build/testflight-archive.log
+
+      - name: Verify the archive and App Store provisioning profile
+        id: verify-profile
+        working-directory: ios
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          ARCHIVED_APPS=(build/Cove.xcarchive/Products/Applications/*.app)
+          [[ ${#ARCHIVED_APPS[@]} -eq 1 ]] || {
+            echo "The archive does not contain an iOS app." >&2
+            exit 1
+          }
+          APP_PATH="${ARCHIVED_APPS[0]}"
+          PROFILE_PATH="$APP_PATH/embedded.mobileprovision"
+          PROFILE_PLIST="$RUNNER_TEMP/cove-app-store-profile.plist"
+          [[ -f "$PROFILE_PATH" ]] || {
+            echo "The archive has no embedded provisioning profile." >&2
+            exit 1
+          }
+
+          security cms -D -i "$PROFILE_PATH" > "$PROFILE_PLIST"
+          read_profile() { /usr/libexec/PlistBuddy -c "Print :$1" "$PROFILE_PLIST"; }
+          [[ "$(read_profile TeamIdentifier:0)" == "$APPLE_TEAM_ID" ]] || {
+            echo "The provisioning profile belongs to a different Apple team." >&2
+            exit 1
+          }
+          [[ "$(read_profile Entitlements:application-identifier)" == "$APPLE_TEAM_ID.$COVE_BUNDLE_ID" ]] || {
+            echo "The provisioning profile does not authorize $COVE_BUNDLE_ID." >&2
+            exit 1
+          }
+          [[ "$(read_profile Entitlements:get-task-allow)" == "false" ]] || {
+            echo "The archive used a development provisioning profile." >&2
+            exit 1
+          }
+          if /usr/libexec/PlistBuddy -c 'Print :ProvisionedDevices' "$PROFILE_PLIST" >/dev/null 2>&1; then
+            echo "The archive used a device-limited profile instead of App Store Connect distribution." >&2
+            exit 1
+          fi
+          if /usr/libexec/PlistBuddy -c 'Print :ProvisionsAllDevices' "$PROFILE_PLIST" >/dev/null 2>&1; then
+            echo "The archive used an enterprise profile instead of App Store Connect distribution." >&2
+            exit 1
+          fi
+
+          codesign --verify --deep --strict "$APP_PATH"
+          [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_PATH/Info.plist")" == "$COVE_BUNDLE_ID" ]] || {
+            echo "The archived bundle identifier is incorrect." >&2
+            exit 1
+          }
+          [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PATH/Info.plist")" == "$COVE_BUILD_NUMBER" ]] || {
+            echo "The archived build number is incorrect." >&2
+            exit 1
+          }
+
+          PROFILE_NAME="$(read_profile Name)"
+          PROFILE_UUID="$(read_profile UUID)"
+          echo "profile_name=$PROFILE_NAME" >> "$GITHUB_OUTPUT"
+          echo "profile_uuid=$PROFILE_UUID" >> "$GITHUB_OUTPUT"
+
+      - name: Export the signed App Store IPA
+        working-directory: ios
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPORT_OPTIONS="$RUNNER_TEMP/Cove-App-Store-ExportOptions.plist"
+          cat > "$EXPORT_OPTIONS" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>destination</key>
+            <string>export</string>
+            <key>method</key>
+            <string>app-store-connect</string>
+            <key>signingStyle</key>
+            <string>automatic</string>
+            <key>stripSwiftSymbols</key>
+            <true/>
+            <key>teamID</key>
+            <string>$APPLE_TEAM_ID</string>
+            <key>uploadSymbols</key>
+            <true/>
+          </dict>
+          </plist>
+          PLIST
+
+          set -o pipefail
+          xcodebuild -exportArchive \
+            -archivePath build/Cove.xcarchive \
+            -exportPath build/TestFlightExport \
+            -exportOptionsPlist "$EXPORT_OPTIONS" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$COVE_API_KEY_PATH" \
+            -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" \
+            -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID" \
+            | tee build/testflight-export.log
+
+      - name: Verify the exported IPA
+        working-directory: ios
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          EXPORTED_IPAS=(build/TestFlightExport/*.ipa)
+          [[ ${#EXPORTED_IPAS[@]} -eq 1 ]] || {
+            echo "Xcode did not export an IPA." >&2
+            exit 1
+          }
+          IPA_PATH="${EXPORTED_IPAS[0]}"
+          VERIFY_DIR="$RUNNER_TEMP/cove-testflight-ipa"
+          mkdir -p "$VERIFY_DIR"
+          /usr/bin/unzip -q "$IPA_PATH" -d "$VERIFY_DIR"
+          EXPORTED_APPS=("$VERIFY_DIR"/Payload/*.app)
+          [[ ${#EXPORTED_APPS[@]} -eq 1 ]] || {
+            echo "The IPA does not contain an app bundle." >&2
+            exit 1
+          }
+          APP_PATH="${EXPORTED_APPS[0]}"
+          codesign --verify --deep --strict "$APP_PATH"
+          read_key() { /usr/libexec/PlistBuddy -c "Print :$1" "$APP_PATH/Info.plist"; }
+          [[ "$(read_key CFBundleIdentifier)" == "$COVE_BUNDLE_ID" ]] || exit 1
+          [[ "$(read_key CFBundleVersion)" == "$COVE_BUILD_NUMBER" ]] || exit 1
+          [[ "$(read_key COVE_RUNTIME_MODE)" == "PRODUCTION_LIVE" ]] || exit 1
+          cp "$IPA_PATH" build/Cove-TestFlight.ipa
+
+      - name: Upload the verified IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cove-TestFlight-IPA-${{ github.run_number }}
+          path: ios/build/Cove-TestFlight.ipa
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload to App Store Connect
+        if: ${{ inputs.upload_to_testflight }}
+        working-directory: ios
+        shell: bash
+        run: |
+          set -euo pipefail
+          UPLOAD_OPTIONS="$RUNNER_TEMP/Cove-TestFlight-UploadOptions.plist"
+          cat > "$UPLOAD_OPTIONS" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>destination</key>
+            <string>upload</string>
+            <key>method</key>
+            <string>app-store-connect</string>
+            <key>signingStyle</key>
+            <string>automatic</string>
+            <key>teamID</key>
+            <string>$APPLE_TEAM_ID</string>
+            <key>uploadSymbols</key>
+            <true/>
+          </dict>
+          </plist>
+          PLIST
+
+          set -o pipefail
+          xcodebuild -exportArchive \
+            -archivePath build/Cove.xcarchive \
+            -exportPath build/TestFlightUpload \
+            -exportOptionsPlist "$UPLOAD_OPTIONS" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$COVE_API_KEY_PATH" \
+            -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" \
+            -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID" \
+            | tee build/testflight-upload.log
+
+      - name: Record TestFlight result
+        if: success()
+        shell: bash
+        run: |
+          {
+            echo "### Cove TestFlight build"
+            echo
+            echo "- Bundle ID: \`$COVE_BUNDLE_ID\`"
+            echo "- Build number: \`$COVE_BUILD_NUMBER\`"
+            echo "- Team: \`$APPLE_TEAM_ID\`"
+            echo "- Provisioning profile: \`${{ steps.verify-profile.outputs.profile_name }}\`"
+            echo "- Provisioning UUID: \`${{ steps.verify-profile.outputs.profile_uuid }}\`"
+            echo "- Upload requested: \`${{ inputs.upload_to_testflight }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload signing and distribution logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cove-TestFlight-Logs-${{ github.run_number }}
+          path: |
+            ios/build/testflight-archive.log
+            ios/build/testflight-export.log
+            ios/build/testflight-upload.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Remove signing credentials from the runner
+        if: always()
+        shell: bash
+        run: |
+          security delete-keychain "$RUNNER_TEMP/cove-testflight-signing/cove-testflight.keychain-db" >/dev/null 2>&1 || true
+          rm -rf "$RUNNER_TEMP/cove-testflight-signing"
+          rm -f "$RUNNER_TEMP/Cove-App-Store-ExportOptions.plist"
+          rm -f "$RUNNER_TEMP/Cove-TestFlight-UploadOptions.plist"
