@@ -210,25 +210,25 @@ struct HomeView: View {
 
     private var newWeekTile: some View {
         Button { appModel.planAnotherWeek() } label: {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Plan a new week")
-                    .font(.headline)
-                Text("Start from scratch")
-                    .font(.subheadline)
-                    .foregroundStyle(WeektableTheme.secondaryInk)
-                Spacer()
-                HStack {
-                    Spacer()
-                    Image(systemName: "plus")
-                        .font(.title3.weight(.medium))
-                        .foregroundStyle(WeektableTheme.ink)
-                        .frame(width: 42, height: 42)
-                        .background(WeektableTheme.gold.opacity(0.24), in: Circle())
+            ZStack(alignment: .bottomTrailing) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Plan a new week")
+                        .font(.headline)
+                    Text("Start from scratch")
+                        .font(.subheadline)
+                        .foregroundStyle(WeektableTheme.secondaryInk)
+                    Spacer(minLength: 0)
                 }
+
+                Image(systemName: "plus")
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(WeektableTheme.ink)
+                    .frame(width: 38, height: 38)
+                    .background(WeektableTheme.gold.opacity(0.24), in: Circle())
             }
             .foregroundStyle(WeektableTheme.ink)
-            .padding(14)
-            .frame(maxWidth: .infinity, minHeight: 135, alignment: .leading)
+            .padding(12)
+            .frame(maxWidth: .infinity, minHeight: 128, maxHeight: 128, alignment: .leading)
             .coveCard(radius: 20)
         }
         .buttonStyle(.plain)
@@ -249,33 +249,35 @@ private struct DashboardTile: View {
     let imageName: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text(title).font(.headline)
-            Text(subtitle)
-                .font(.subheadline)
-                .foregroundStyle(WeektableTheme.ink)
-                .lineLimit(2)
-            if let detail {
-                Text(detail)
-                    .font(.caption)
-                    .foregroundStyle(WeektableTheme.brand)
-            }
-            Spacer(minLength: 2)
-            if let imageName {
-                HStack {
-                    Spacer()
-                    Image(imageName)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 72, height: 58)
-                        .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
-                        .accessibilityHidden(true)
+        ZStack(alignment: .bottomTrailing) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(title).font(.headline)
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(WeektableTheme.ink)
+                    .lineLimit(2)
+                    .frame(maxWidth: imageName == nil ? .infinity : 94, alignment: .leading)
+                if let detail {
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(WeektableTheme.brand)
                 }
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+            if let imageName {
+                Image(imageName)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 58, height: 48)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .accessibilityHidden(true)
             }
         }
         .foregroundStyle(WeektableTheme.ink)
-        .padding(14)
-        .frame(maxWidth: .infinity, minHeight: 135, alignment: .leading)
+        .padding(12)
+        .frame(maxWidth: .infinity, minHeight: 128, maxHeight: 128, alignment: .leading)
         .coveCard(radius: 20)
     }
 }
