@@ -12,11 +12,6 @@ on:
         description: Email address associated with the Apple Developer account
         required: true
         type: string
-      country_code:
-        description: Two-letter country code used in the CSR subject
-        required: true
-        default: FR
-        type: string
       confirmation:
         description: Type CREATE COVE CSR to confirm this one-time key generation
         required: true
@@ -38,7 +33,6 @@ jobs:
       KEY_ENCRYPTION_PASSWORD: ${{ secrets.APPLE_CERT_PRIVATE_KEY_PASSWORD }}
       CSR_COMMON_NAME: ${{ inputs.certificate_common_name }}
       CSR_EMAIL: ${{ inputs.apple_account_email }}
-      CSR_COUNTRY: ${{ inputs.country_code }}
       CONFIRMATION: ${{ inputs.confirmation }}
 
     steps:
@@ -62,11 +56,6 @@ jobs:
             echo "The Apple account email is invalid." >&2
             exit 1
           }
-          [[ "$CSR_COUNTRY" =~ ^[A-Z]{2}$ ]] || {
-            echo "Country code must be two uppercase letters." >&2
-            exit 1
-          }
-
       - name: Select OpenSSL 3
         shell: bash
         run: |
@@ -91,6 +80,9 @@ jobs:
           ENCRYPTED_KEY="$ARTIFACT_DIR/Cove-Apple-Distribution.private-key.pem.enc"
           FINGERPRINT_FILE="$ARTIFACT_DIR/Cove-Apple-Distribution.public-key-sha256.txt"
           ENCRYPTION_METADATA="$ARTIFACT_DIR/Cove-Apple-Distribution.private-key-encryption.txt"
+          CSR_CONFIG="$PRIVATE_DIR/apple-csr.cnf"
+          CSR_DER="$PRIVATE_DIR/apple-csr.der"
+          CSR_TEXT="$PRIVATE_DIR/apple-csr.txt"
 
           cleanup() {
             rm -f "$PRIVATE_KEY"
@@ -101,18 +93,27 @@ jobs:
           mkdir -p "$PRIVATE_DIR" "$ARTIFACT_DIR"
           chmod 700 "$PRIVATE_DIR" "$ARTIFACT_DIR"
 
-          "$OPENSSL_BIN" genpkey \
-            -algorithm RSA \
-            -pkeyopt rsa_keygen_bits:2048 \
-            -out "$PRIVATE_KEY"
+          "$OPENSSL_BIN" genrsa -traditional -out "$PRIVATE_KEY" 2048
           chmod 600 "$PRIVATE_KEY"
+
+          {
+            echo "[req]"
+            echo "prompt = no"
+            echo "distinguished_name = subject"
+            echo "default_md = sha256"
+            echo "string_mask = utf8only"
+            echo
+            echo "[subject]"
+            echo "emailAddress = $CSR_EMAIL"
+            echo "CN = $CSR_COMMON_NAME"
+          } > "$CSR_CONFIG"
 
           "$OPENSSL_BIN" req \
             -new \
             -sha256 \
             -key "$PRIVATE_KEY" \
             -out "$CSR_FILE" \
-            -subj "/emailAddress=$CSR_EMAIL/CN=$CSR_COMMON_NAME/C=$CSR_COUNTRY"
+            -config "$CSR_CONFIG"
 
           "$OPENSSL_BIN" enc \
             -aes-256-cbc \
@@ -124,9 +125,54 @@ jobs:
             -out "$ENCRYPTED_KEY" \
             -pass env:KEY_ENCRYPTION_PASSWORD
 
+          PRIVATE_PUBLIC_KEY_SHA256="$(
+            "$OPENSSL_BIN" pkey -in "$PRIVATE_KEY" -pubout -outform DER 2>/dev/null \
+              | "$OPENSSL_BIN" dgst -sha256 \
+              | sed 's/^.*= //'
+          )"
+          CSR_PUBLIC_KEY_SHA256="$(
+            "$OPENSSL_BIN" req -in "$CSR_FILE" -pubkey -noout \
+              | "$OPENSSL_BIN" pkey -pubin -outform DER 2>/dev/null \
+              | "$OPENSSL_BIN" dgst -sha256 \
+              | sed 's/^.*= //'
+          )"
+          [[ "$PRIVATE_PUBLIC_KEY_SHA256" == "$CSR_PUBLIC_KEY_SHA256" ]] || {
+            echo "CSR public key does not match the generated private key." >&2
+            exit 1
+          }
+          printf '%s\n' "$CSR_PUBLIC_KEY_SHA256" > "$FINGERPRINT_FILE"
+
+          "$OPENSSL_BIN" req -in "$CSR_FILE" -outform DER -out "$CSR_DER"
+          "$OPENSSL_BIN" asn1parse -inform DER -in "$CSR_DER" >/dev/null
+          "$OPENSSL_BIN" req -in "$CSR_FILE" -noout -verify
+          /usr/bin/openssl req -in "$CSR_FILE" -noout -verify
+          "$OPENSSL_BIN" req -in "$CSR_FILE" -noout -text > "$CSR_TEXT"
+
+          grep -q "Public Key Algorithm: rsaEncryption" "$CSR_TEXT" || {
+            echo "CSR does not contain an RSA public key." >&2
+            exit 1
+          }
+          grep -q "Public-Key: (2048 bit)" "$CSR_TEXT" || {
+            echo "CSR does not contain a 2048-bit public key." >&2
+            exit 1
+          }
+          grep -q "Signature Algorithm: sha256WithRSAEncryption" "$CSR_TEXT" || {
+            echo "CSR does not use an RSA SHA-256 signature." >&2
+            exit 1
+          }
+          [[ "$(head -n 1 "$CSR_FILE")" == "-----BEGIN CERTIFICATE REQUEST-----" ]] || {
+            echo "CSR is not PEM-encoded PKCS#10." >&2
+            exit 1
+          }
+          [[ "$(tail -n 1 "$CSR_FILE")" == "-----END CERTIFICATE REQUEST-----" ]] || {
+            echo "CSR PEM footer is invalid." >&2
+            exit 1
+          }
+
           "$OPENSSL_BIN" pkey -in "$PRIVATE_KEY" -pubout 2>/dev/null \
             | "$OPENSSL_BIN" dgst -sha256 \
-            | sed 's/^.*= //' > "$FINGERPRINT_FILE"
+            | sed 's/^.*= //' \
+            | grep -qx "$CSR_PUBLIC_KEY_SHA256"
 
           {
             echo "format=OpenSSL enc"
@@ -140,7 +186,6 @@ jobs:
 
           chmod 600 "$CSR_FILE" "$ENCRYPTED_KEY" "$FINGERPRINT_FILE" "$ENCRYPTION_METADATA"
 
-          "$OPENSSL_BIN" req -in "$CSR_FILE" -noout -verify
           "$OPENSSL_BIN" enc \
             -d \
             -aes-256-cbc \
@@ -154,17 +199,15 @@ jobs:
       - name: Upload Apple certificate signing request
         uses: actions/upload-artifact@v4
         with:
-          name: Cove-Apple-Distribution-CSR
-          path: |
-            ${{ runner.temp }}/cove-apple-distribution-artifacts/Cove-Apple-Distribution.certSigningRequest
-            ${{ runner.temp }}/cove-apple-distribution-artifacts/Cove-Apple-Distribution.public-key-sha256.txt
+          name: Cove-Apple-Distribution-CSR-v2
+          path: ${{ runner.temp }}/cove-apple-distribution-artifacts/Cove-Apple-Distribution.certSigningRequest
           if-no-files-found: error
           retention-days: 90
 
       - name: Preserve encrypted matching private key
         uses: actions/upload-artifact@v4
         with:
-          name: Cove-Apple-Distribution-Encrypted-Private-Key
+          name: Cove-Apple-Distribution-Encrypted-Private-Key-v2
           path: |
             ${{ runner.temp }}/cove-apple-distribution-artifacts/Cove-Apple-Distribution.private-key.pem.enc
             ${{ runner.temp }}/cove-apple-distribution-artifacts/Cove-Apple-Distribution.private-key-encryption.txt
@@ -179,9 +222,9 @@ jobs:
           {
             echo "## Cove Apple Distribution CSR created"
             echo
-            echo "1. Download artifact \`Cove-Apple-Distribution-CSR\`."
+            echo "1. Download artifact \`Cove-Apple-Distribution-CSR-v2\`."
             echo "2. Extract and upload \`Cove-Apple-Distribution.certSigningRequest\` to Apple's **Certificates, Identifiers & Profiles → Certificates → Apple Distribution** form."
-            echo "3. Keep artifact \`Cove-Apple-Distribution-Encrypted-Private-Key\` and repository secret \`APPLE_CERT_PRIVATE_KEY_PASSWORD\`; both are required to create the matching TestFlight \`.p12\`."
+            echo "3. Keep artifact \`Cove-Apple-Distribution-Encrypted-Private-Key-v2\` and repository secret \`APPLE_CERT_PRIVATE_KEY_PASSWORD\`; both are required to create the matching TestFlight \`.p12\`."
             echo "4. Record this workflow run ID: \`$GITHUB_RUN_ID\`."
             echo
             echo "The plaintext private key was not uploaded and is removed with the ephemeral runner workspace."
