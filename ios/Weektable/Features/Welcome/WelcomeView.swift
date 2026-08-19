@@ -6,9 +6,13 @@ struct WelcomeView: View {
 
     var body: some View {
         ZStack {
+            WeektableTheme.canvas
+                .ignoresSafeArea()
+
             Image("cove-welcome-kitchen")
                 .resizable()
                 .scaledToFill()
+                .offset(y: -55)
                 .ignoresSafeArea()
                 .accessibilityHidden(true)
 
