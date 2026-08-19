@@ -158,11 +158,47 @@ jobs:
             [[ "$(read_key COVE_SUPPORT_URL)" == "$EXPECTED_SUPPORT_URL" ]] || { echo "Support URL was not embedded" >&2; exit 1; }
           fi
 
+      - name: Capture native Cove redesign screens
+        working-directory: ios
+        run: |
+          set -euo pipefail
+          DEVICE_ID=$(xcrun simctl list devices booted -j | jq -r '[.devices[][]][0].udid // empty')
+          [[ -n "$DEVICE_ID" ]] || { echo "No booted iOS Simulator was available for screenshots." >&2; exit 1; }
+          APP_PATH=build/DerivedData/Build/Products/Debug-iphonesimulator/Weektable.app
+          BUNDLE_ID=com.weektable.ios
+          SCREENSHOT_DIR=build/ui-screenshots
+          mkdir -p "$SCREENSHOT_DIR"
+          xcrun simctl install "$DEVICE_ID" "$APP_PATH"
+          xcrun simctl ui "$DEVICE_ID" appearance light
+          xcrun simctl status_bar "$DEVICE_ID" override --time 9:41 --batteryState charged --batteryLevel 100 || true
+
+          capture() {
+            local name="$1"
+            shift
+            xcrun simctl terminate "$DEVICE_ID" "$BUNDLE_ID" 2>/dev/null || true
+            xcrun simctl launch "$DEVICE_ID" "$BUNDLE_ID" "$@"
+            sleep 3
+            xcrun simctl io "$DEVICE_ID" screenshot "$SCREENSHOT_DIR/$name.png"
+          }
+
+          capture welcome -cove-ui-test-reset
+          capture home -cove-ui-test-reset -cove-ui-test-active-plan
+          capture week -cove-ui-test-reset -cove-ui-test-active-plan -cove-ui-test-week
+          capture assistant -cove-ui-test-reset -cove-ui-test-active-plan -cove-ui-test-assistant
+
       - name: Upload the Appetize-ready ZIP
         uses: actions/upload-artifact@v4
         with:
           name: Cove-Appetize
           path: ios/build/Cove-Appetize.zip
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload native redesign screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cove-UI-Screenshots
+          path: ios/build/ui-screenshots/*.png
           if-no-files-found: error
           retention-days: 14
 

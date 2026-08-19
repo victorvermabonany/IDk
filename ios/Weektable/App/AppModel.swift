@@ -80,6 +80,9 @@ final class AppModel {
         self.subscriptions = subscriptions
         self.analytics = analytics
         restoreLocalState()
+#if DEBUG
+        applyDebugLaunchState()
+#endif
     }
 
     func prepareForUse() async {
@@ -385,6 +388,14 @@ final class AppModel {
     private func persistGroceryState() {
         try? persistence.save(groceryState, key: PersistenceKey.groceryState)
     }
+
+#if DEBUG
+    private func applyDebugLaunchState() {
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-cove-ui-test-week") { selectedTab = .week }
+        if arguments.contains("-cove-ui-test-assistant") { assistantPresented = true }
+    }
+#endif
 
     private func synchronizeGroceryState(
         previousState: GroceryState,
