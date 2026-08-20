@@ -113,7 +113,7 @@ struct ProAccessPolicy {
 
     func allows(_ capability: ProCapability, completedPlans: Int, completedSwaps: Int) -> Bool {
         if isPro { return true }
-        switch capability {
+        return switch capability {
         case .generateWeek: completedPlans == 0
         case .swapMeal: completedSwaps == 0
         case .savedPreferences, .planHistory, .nutritionSummary: false
