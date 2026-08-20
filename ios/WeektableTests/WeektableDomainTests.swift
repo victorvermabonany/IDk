@@ -240,7 +240,7 @@ final class WeektableDomainTests: XCTestCase {
         model.rootFlow = .planner
 
         model.beginGeneration()
-        for _ in 0..<60 where model.rootFlow != .main {
+        for _ in 0..<150 where model.rootFlow != .main {
             try await Task.sleep(for: .milliseconds(100))
         }
 

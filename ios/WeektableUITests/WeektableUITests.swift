@@ -55,6 +55,9 @@ final class WeektableUITests: XCTestCase {
         app.launch()
 
         let newWeek = app.buttons["Plan a new week"]
+        for _ in 0..<3 where !newWeek.exists {
+            app.scrollViews.firstMatch.swipeUp()
+        }
         XCTAssertTrue(newWeek.waitForExistence(timeout: 2))
         newWeek.tap()
 
