@@ -114,7 +114,7 @@ actor APIPlanRepository: PlanRepository {
     }
 
     func generationUpdates(jobID: String) async -> AsyncThrowingStream<GenerationUpdate, Error> {
-        AsyncThrowingStream { continuation in
+        let stream: AsyncThrowingStream<GenerationUpdate, Error> = AsyncThrowingStream { continuation in
             let task = Task {
                 do {
                     var finished = false
@@ -122,15 +122,7 @@ actor APIPlanRepository: PlanRepository {
                     while !finished {
                         let response: UpdatesEnvelope = try await client.send("/v1/generation-jobs/\(jobID)")
                         if let update = response.updates.last {
-                            let metadata = update.metadata
-                            let signature = [
-                                update.stage.rawValue,
-                                update.completedPlanID ?? "",
-                                metadata?.ingredientCount.map { String($0) } ?? "",
-                                metadata?.productsMatched.map { String($0) } ?? "",
-                                metadata?.reusedIngredientCount.map { String($0) } ?? "",
-                                metadata?.underBudgetCents.map { String($0) } ?? "",
-                            ].joined(separator: ":")
+                            let signature = updateSignature(update)
                             guard signature != lastSignature else {
                                 if !finished { try await Task.sleep(for: .seconds(1)) }
                                 continue
@@ -148,6 +140,12 @@ actor APIPlanRepository: PlanRepository {
             }
             continuation.onTermination = { _ in task.cancel() }
         }
+        return stream
+    }
+
+    private func updateSignature(_ update: GenerationUpdate) -> String {
+        let metadata = update.metadata
+        return "\(update.stage.rawValue):\(update.completedPlanID ?? ""):\(metadata?.ingredientCount ?? -1):\(metadata?.productsMatched ?? -1):\(metadata?.reusedIngredientCount ?? -1):\(metadata?.underBudgetCents ?? -1)"
     }
 
     func plan(id: String) async throws -> MealPlan {
