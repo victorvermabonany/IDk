@@ -237,6 +237,8 @@ struct HomeView: View {
             .coveCard(radius: 18, fill: WeektableTheme.surface.opacity(0.62), shadow: false)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Plan a new week")
+        .accessibilityIdentifier("home.planNewWeek")
     }
 
     private func budgetBalance(for plan: MealPlan) -> String {

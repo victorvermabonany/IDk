@@ -54,7 +54,7 @@ final class WeektableUITests: XCTestCase {
         app.launchArguments = ["-cove-ui-test-reset", "-cove-ui-test-active-plan"]
         app.launch()
 
-        let newWeek = app.buttons["Plan a new week"]
+        let newWeek = app.buttons["home.planNewWeek"]
         for _ in 0..<3 where !newWeek.exists {
             app.scrollViews.firstMatch.swipeUp()
         }
