@@ -150,7 +150,8 @@ final class WeektableDomainTests: XCTestCase {
         XCTAssertEqual(received.map(\.stage), GenerationStage.allCases)
         XCTAssertEqual(received.last?.completedPlanID, job.planID)
         XCTAssertTrue(received.allSatisfy { $0.jobID == job.id })
-        XCTAssertEqual(received.last?.metadata?.ingredientCount, DemoData.plan.basket.count)
+        let generatedPlan = try await repository.plan(id: job.planID)
+        XCTAssertEqual(received.last?.metadata?.ingredientCount, generatedPlan.basket.count)
     }
 
     func testLegacyGenerationStageNamesRemainDecodableDuringDeployment() throws {
