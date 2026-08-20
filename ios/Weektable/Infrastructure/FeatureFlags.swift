@@ -1,6 +1,7 @@
 import Foundation
 
 enum FeatureFlags {
-    /// StoreKit remains implemented, but internal beta access is intentionally free.
-    static let subscriptionsEnabled = false
+    /// Pro access and its gates are live. App Store purchasing remains intentionally disabled
+    /// until the products and server-side transaction verification are activated.
+    static let storeKitPurchasesEnabled = false
 }

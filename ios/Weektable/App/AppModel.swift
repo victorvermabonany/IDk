@@ -64,7 +64,10 @@ final class AppModel {
     var assistantPresented = false
     var completedPlanCount = 0
     var completedSwapCount = 0
-    var entitlementCache = EntitlementCache()
+    var proAccess = ProAccessPolicy()
+    var entitlementCache: EntitlementCache { proAccess.entitlement }
+    var savedPlanningPreferences: PlannerRequest?
+    var planHistory: [MealPlan] = []
     var availableStores: [Store] = []
     var storeSearchState: StoreSearchState = .idle
     var storeErrorMessage: String?
@@ -96,13 +99,9 @@ final class AppModel {
 
     func prepareForUse() async {
         await analytics.track(.appOpened)
-        guard FeatureFlags.subscriptionsEnabled else { return }
+        guard FeatureFlags.storeKitPurchasesEnabled else { return }
         await subscriptions.prepare()
-        entitlementCache = EntitlementCache(
-            productIDs: subscriptions.verifiedProductIDs,
-            verifiedAt: .now
-        )
-        try? persistence.save(entitlementCache, key: PersistenceKey.entitlementCache)
+        applyVerifiedEntitlement(subscriptions.entitlement)
     }
 
     func showPlanner() {
@@ -149,9 +148,14 @@ final class AppModel {
         }
         plannerDraft = normalized
         try? persistence.save(normalized, key: PersistenceKey.plannerDraft)
+        if proAccess.allows(.savedPreferences, completedPlans: completedPlanCount, completedSwaps: completedSwapCount) {
+            savedPlanningPreferences = normalized
+            try? persistence.save(normalized, key: PersistenceKey.savedPlanningPreferences)
+        }
     }
 
     func beginGeneration() {
+        guard requireAccess(.generateWeek, paywall: .anotherWeek) else { return }
         guard generationTask == nil else { return }
         generationTask?.cancel()
         generationTask = nil
@@ -179,6 +183,7 @@ final class AppModel {
                 try await observeGeneration(job)
             } catch {
                 generationTask = nil
+                if handleBackendPremiumGate(error, feature: .anotherWeek) { return }
                 clearTerminalGenerationJob(for: error)
                 generationFailure = GenerationFailure.userFacing(for: error, request: request)
                 await analytics.track(.generationFailed)
@@ -283,10 +288,7 @@ final class AppModel {
     }
 
     func openSwap(for meal: Meal) {
-        guard !FeatureFlags.subscriptionsEnabled || subscriptions.isPro || completedSwapCount == 0 else {
-            presentPaywall(for: .additionalSwap)
-            return
-        }
+        guard requireAccess(.swapMeal, paywall: .additionalSwap) else { return }
         swapMeal = meal
         Task { await analytics.track(.swapOpened) }
         swapPreviews = []
@@ -318,6 +320,7 @@ final class AppModel {
                 )
                 self.plan = updated
                 try? persistence.save(updated, key: PersistenceKey.cachedPlan)
+                savePlanSnapshot(updated)
                 completedSwapCount += 1
                 try? persistence.save(completedSwapCount, key: PersistenceKey.completedSwapCount)
                 self.swapMeal = nil
@@ -325,6 +328,12 @@ final class AppModel {
                 Haptics.success()
                 UIAccessibility.post(notification: .announcement, argument: "Meal swapped. Estimated basket updated to \(updated.estimatedTotalCents.currency).")
             } catch {
+                if handleBackendPremiumGate(error, feature: .additionalSwap) {
+                    self.swapMeal = nil
+                    isApplyingSwap = false
+                    applyingSwapPreviewID = nil
+                    return
+                }
                 swapErrorMessage = "We couldn’t update the estimated basket. Your original meal is unchanged. Try again."
                 Haptics.warning()
             }
@@ -336,15 +345,17 @@ final class AppModel {
     func dismissSwap() { swapMeal = nil }
 
     func planAnotherWeek() {
-        guard !FeatureFlags.subscriptionsEnabled || subscriptions.isPro || completedPlanCount == 0 else {
-            presentPaywall(for: .anotherWeek)
-            return
-        }
+        guard requireAccess(.generateWeek, paywall: .anotherWeek) else { return }
         startPlannerForAnotherWeek()
     }
 
     func startPlannerForAnotherWeek() {
         paywallTrigger = nil
+        if proAccess.allows(.savedPreferences, completedPlans: completedPlanCount, completedSwaps: completedSwapCount),
+           let savedPlanningPreferences {
+            plannerDraft = savedPlanningPreferences
+            try? persistence.save(savedPlanningPreferences, key: PersistenceKey.plannerDraft)
+        }
         weekNavigationPath.removeAll()
         selectedTab = .home
         plannerEntryPoint = .store
@@ -362,6 +373,38 @@ final class AppModel {
         Task { await analytics.track(.paywallViewed) }
     }
 
+    func presentPaywallFromSettings(for feature: PremiumFeature) {
+        settingsPresented = false
+        Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(250))
+            self?.presentPaywall(for: feature)
+        }
+    }
+
+    func applyVerifiedEntitlement(_ entitlement: EntitlementCache) {
+        proAccess.update(entitlement)
+        try? persistence.save(entitlement, key: PersistenceKey.entitlementCache)
+        if entitlement.isPro {
+            savedPlanningPreferences = plannerDraft
+            try? persistence.save(plannerDraft, key: PersistenceKey.savedPlanningPreferences)
+        }
+    }
+
+    func openHistoricalPlan(_ snapshot: MealPlan) {
+        guard requireAccess(.planHistory, paywall: .planHistory) else { return }
+        plan = snapshot
+        try? persistence.save(snapshot, key: PersistenceKey.cachedPlan)
+        groceryState = GroceryState(
+            checkedItemIDs: [],
+            ownedItemIDs: Set(snapshot.basket.filter(\.pantryStatus).map(\.id))
+        )
+        persistGroceryState()
+        weekNavigationPath.removeAll()
+        selectedTab = .week
+        settingsPresented = false
+        Haptics.selection()
+    }
+
     var groceryTotalCents: Int {
         guard let plan else { return 0 }
         return plan.basket.reduce(0) { total, item in
@@ -374,6 +417,13 @@ final class AppModel {
         let generatedPlan = try await repository.plan(id: planID)
         plan = generatedPlan
         try? persistence.save(generatedPlan, key: PersistenceKey.cachedPlan)
+        savePlanSnapshot(generatedPlan)
+        if proAccess.allows(.savedPreferences, completedPlans: completedPlanCount, completedSwaps: completedSwapCount) {
+            savedPlanningPreferences = generatedPlan.constraintsUsed
+            plannerDraft = generatedPlan.constraintsUsed
+            try? persistence.save(generatedPlan.constraintsUsed, key: PersistenceKey.savedPlanningPreferences)
+            try? persistence.save(generatedPlan.constraintsUsed, key: PersistenceKey.plannerDraft)
+        }
         try? persistence.remove(key: PersistenceKey.generationJob)
         try? persistence.remove(key: PersistenceKey.generationUpdate)
         try? persistence.remove(key: PersistenceKey.generationSubmissionKey)
@@ -397,12 +447,19 @@ final class AppModel {
         plannerDraft = (try? persistence.load(PlannerRequest.self, key: PersistenceKey.plannerDraft)) ?? PlannerRequest()
         completedPlanCount = (try? persistence.load(Int.self, key: PersistenceKey.completedPlanCount)) ?? 0
         completedSwapCount = (try? persistence.load(Int.self, key: PersistenceKey.completedSwapCount)) ?? 0
-        entitlementCache = (try? persistence.load(EntitlementCache.self, key: PersistenceKey.entitlementCache)) ?? EntitlementCache()
+        let restoredEntitlement = (try? persistence.load(EntitlementCache.self, key: PersistenceKey.entitlementCache)) ?? EntitlementCache()
+        proAccess = ProAccessPolicy(entitlement: restoredEntitlement)
+        savedPlanningPreferences = try? persistence.load(PlannerRequest.self, key: PersistenceKey.savedPlanningPreferences)
+        planHistory = (try? persistence.load([MealPlan].self, key: PersistenceKey.planHistory)) ?? []
         let completedWelcome = (try? persistence.load(Bool.self, key: PersistenceKey.hasCompletedWelcome)) ?? false
         let savedGroceryState = try? persistence.load(GroceryState.self, key: PersistenceKey.groceryState)
         groceryState = savedGroceryState ?? GroceryState()
         if let cached = try? persistence.load(MealPlan.self, key: PersistenceKey.cachedPlan) {
             plan = cached
+            if !planHistory.contains(where: { $0.id == cached.id }) {
+                planHistory.append(cached)
+                sortAndPersistPlanHistory()
+            }
             if completedPlanCount == 0 {
                 completedPlanCount = 1
                 try? persistence.save(completedPlanCount, key: PersistenceKey.completedPlanCount)
@@ -428,6 +485,35 @@ final class AppModel {
 
     private func persistGroceryState() {
         try? persistence.save(groceryState, key: PersistenceKey.groceryState)
+    }
+
+    private func requireAccess(_ capability: ProCapability, paywall feature: PremiumFeature) -> Bool {
+        guard proAccess.allows(capability, completedPlans: completedPlanCount, completedSwaps: completedSwapCount) else {
+            if feature == .anotherWeek, plan != nil { rootFlow = .main }
+            presentPaywall(for: feature)
+            return false
+        }
+        return true
+    }
+
+    private func handleBackendPremiumGate(_ error: Error, feature: PremiumFeature) -> Bool {
+        guard let apiError = error as? APIError,
+              case let .server(_, code, _) = apiError,
+              code?.uppercased() == "PREMIUM_REQUIRED" else { return false }
+        if feature == .anotherWeek, plan != nil { rootFlow = .main }
+        presentPaywall(for: feature)
+        return true
+    }
+
+    private func savePlanSnapshot(_ snapshot: MealPlan) {
+        planHistory.removeAll { $0.id == snapshot.id }
+        planHistory.append(snapshot)
+        sortAndPersistPlanHistory()
+    }
+
+    private func sortAndPersistPlanHistory() {
+        planHistory.sort { $0.createdDate > $1.createdDate }
+        try? persistence.save(planHistory, key: PersistenceKey.planHistory)
     }
 
 #if DEBUG
@@ -457,6 +543,7 @@ final class AppModel {
                 let updatedPlan = try await repository.updateGroceryState(planID: plan.id, state: stateToSync)
                 self.plan = updatedPlan
                 try? persistence.save(updatedPlan, key: PersistenceKey.cachedPlan)
+                savePlanSnapshot(updatedPlan)
                 if announceBasket {
                     UIAccessibility.post(notification: .announcement, argument: "Estimated basket updated to \(groceryTotalCents.currency)")
                 }

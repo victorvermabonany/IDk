@@ -1,12 +1,14 @@
 import { PlanGenerationError, plannerRequestSchema } from "@/domain/types";
 import { readJob, readPlan, runGeneration, startGeneration } from "@/server/plan-store";
+import { clientIdentifier } from "@/server/request-guard";
+import { PremiumAccessError } from "@/server/premium-access";
 import { ZodError } from "zod";
 
 export async function POST(request: Request) {
   try {
     const body: unknown = await request.json();
     const input = plannerRequestSchema.parse(body);
-    const job = await startGeneration(input, request.headers.get("Idempotency-Key") ?? crypto.randomUUID());
+    const job = await startGeneration(input, request.headers.get("Idempotency-Key") ?? crypto.randomUUID(), clientIdentifier(request));
     await runGeneration(job.id);
     const completedJob = await readJob(job.id);
     if (completedJob?.status === "failed") {
@@ -19,6 +21,9 @@ export async function POST(request: Request) {
     if (!plan) throw new Error("Generated plan was not persisted.");
     return Response.json({ plan }, { status: 201 });
   } catch (error) {
+    if (error instanceof PremiumAccessError) {
+      return Response.json({ error: { code: error.code, message: error.message, feature: error.feature } }, { status: 402 });
+    }
     if (error instanceof PlanGenerationError) {
       const status = error.code === "PROVIDER_UNAVAILABLE" ? 503 : error.code === "MODEL_FAILURE" ? 502 : 422;
       return Response.json(

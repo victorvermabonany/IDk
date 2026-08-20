@@ -29,7 +29,16 @@ struct PaywallView: View {
                     }
 
                     benefits
-                    products
+                    if FeatureFlags.storeKitPurchasesEnabled {
+                        products
+                    } else {
+                        Label("Cove Pro purchases are not enabled in this build yet.", systemImage: "hammer.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(WeektableTheme.secondaryInk)
+                            .padding(16)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .coveCard(shadow: false)
+                    }
 
                     if let statusMessage {
                         Label(statusMessage, systemImage: "info.circle.fill")
@@ -39,26 +48,28 @@ struct PaywallView: View {
                             .accessibilityElement(children: .combine)
                     }
 
-                    Button(isPurchasing ? "Contacting the App Store…" : "Continue with Cove Pro") {
-                        Task { await purchaseSelectedProduct() }
-                    }
-                    .buttonStyle(PrimaryButtonStyle())
-                    .disabled(isPurchasing || selectedProduct == nil)
+                    if FeatureFlags.storeKitPurchasesEnabled {
+                        Button(isPurchasing ? "Contacting the App Store…" : "Continue with Cove Pro") {
+                            Task { await purchaseSelectedProduct() }
+                        }
+                        .buttonStyle(PrimaryButtonStyle())
+                        .disabled(isPurchasing || selectedProduct == nil)
 
-                    Button {
-                        Task { await restore() }
-                    } label: {
-                        Text(subscriptions.isRestoring ? "Restoring…" : "Restore purchases")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(SecondaryButtonStyle())
-                    .disabled(isPurchasing || subscriptions.isRestoring)
+                        Button {
+                            Task { await restore() }
+                        } label: {
+                            Text(subscriptions.isRestoring ? "Restoring…" : "Restore purchases")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(SecondaryButtonStyle())
+                        .disabled(isPurchasing || subscriptions.isRestoring)
 
-                    Text("Payment is charged to your Apple ID. Subscriptions renew automatically unless cancelled in App Store settings before the current period ends.")
-                        .font(.footnote)
-                        .foregroundStyle(WeektableTheme.secondaryInk)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.bottom, 22)
+                        Text("Payment is charged to your Apple ID. Subscriptions renew automatically unless cancelled in App Store settings before the current period ends.")
+                            .font(.footnote)
+                            .foregroundStyle(WeektableTheme.secondaryInk)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.bottom, 22)
+                    }
                 }
                 .padding(WeektableTheme.pagePadding)
             }
@@ -73,7 +84,7 @@ struct PaywallView: View {
                 }
             }
             .task {
-                if subscriptions.products.isEmpty { await subscriptions.loadProducts() }
+                if FeatureFlags.storeKitPurchasesEnabled, subscriptions.products.isEmpty { await subscriptions.loadProducts() }
                 selectedProductID = subscriptions.products.first?.id
             }
         }
@@ -108,6 +119,8 @@ struct PaywallView: View {
             BenefitRow(symbol: "arrow.triangle.2.circlepath", text: "Unlimited swaps with estimated-basket updates", color: WeektableTheme.sky)
             Divider().padding(.leading, 48)
             BenefitRow(symbol: "slider.horizontal.3", text: "Saved preferences and advanced replanning", color: WeektableTheme.sage)
+            Divider().padding(.leading, 48)
+            BenefitRow(symbol: "clock.arrow.circlepath", text: "Plan history with saved week snapshots", color: WeektableTheme.brand)
         }
         .padding(.horizontal, 16)
         .coveCard()
@@ -164,6 +177,7 @@ struct PaywallView: View {
     private func handle(_ outcome: PurchaseOutcome) {
         switch outcome {
         case .purchased:
+            appModel.applyVerifiedEntitlement(subscriptions.entitlement)
             Haptics.success()
             UIAccessibility.post(notification: .announcement, argument: "Cove Pro is active")
             if feature == .anotherWeek { appModel.startPlannerForAnotherWeek() }

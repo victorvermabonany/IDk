@@ -59,6 +59,7 @@ export async function proposeMeals(request: PlannerRequest, repairFeedback?: str
           "Keep each meal title natural and concise: usually 2 to 6 words, naming the dish and its most important distinction rather than listing every ingredient or garnish.",
           "Offer meaningful variety across primary proteins, starches, vegetables, cooking methods, cuisines, flavors, and meal formats. Reuse ingredients intelligently, but avoid near-duplicate meals or excessive use of one centerpiece ingredient.",
           "Quick means fewer ingredients and simple methods. Budget-first means low-cost proteins and high reuse. Balanced means reasonable variety. Lighter is a style preference, not calorie restriction.",
+          "Do not apply a high-protein tag or make a verified nutrition claim; nutrition values are unverified recipe estimates until Cove adds an authoritative nutrition source.",
           "Return structured recipe facts only.",
         ].join(" "),
       },

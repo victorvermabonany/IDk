@@ -48,4 +48,18 @@ final class WeektableUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["16 products matched"].exists)
         XCTAssertFalse(app.progressIndicators.firstMatch.exists)
     }
+
+    func testFreeSecondWeekUsesCentralCoveProGate() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-cove-ui-test-reset", "-cove-ui-test-active-plan"]
+        app.launch()
+
+        let newWeek = app.buttons["Plan a new week"]
+        XCTAssertTrue(newWeek.waitForExistence(timeout: 2))
+        newWeek.tap()
+
+        XCTAssertTrue(app.staticTexts["Your week, every week."].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["Cove Pro purchases are not enabled in this build yet."].exists)
+        XCTAssertFalse(app.buttons["Continue with Cove Pro"].exists)
+    }
 }

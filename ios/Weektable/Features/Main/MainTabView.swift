@@ -55,13 +55,11 @@ struct MainTabView: View {
                 .presentationContentInteraction(.scrolls)
         }
         .sheet(item: $appModel.paywallTrigger) { feature in
-            if FeatureFlags.subscriptionsEnabled {
-                PaywallView(appModel: appModel, feature: feature)
-                    .presentationDetents([.large])
-                    .presentationDragIndicator(.visible)
-                    .presentationCornerRadius(30)
-                    .presentationBackground(WeektableTheme.canvas)
-            }
+            PaywallView(appModel: appModel, feature: feature)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(30)
+                .presentationBackground(WeektableTheme.canvas)
         }
         .sheet(isPresented: $appModel.settingsPresented) {
             NavigationStack {

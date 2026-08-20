@@ -20,25 +20,49 @@ struct SettingsView: View {
             }
             .listRowBackground(WeektableTheme.raised)
 
-            if FeatureFlags.subscriptionsEnabled {
-                Section("Cove Pro") {
+            Section("Cove Pro") {
+                if FeatureFlags.storeKitPurchasesEnabled {
                     NavigationLink {
                         SubscriptionSettingsView(appModel: appModel)
                     } label: {
                         Label {
-                            LabeledContent("Subscription", value: appModel.subscriptions.isPro ? "Pro active" : "Free")
+                            LabeledContent("Subscription", value: appModel.proAccess.isPro ? "Pro active" : "Free")
                         } icon: {
                             Image(systemName: "crown.fill").foregroundStyle(WeektableTheme.brand)
                         }
+                    }
+                } else {
+                    LabeledContent {
+                        Text(appModel.proAccess.isPro ? "Pro active" : "Free")
+                    } label: {
+                        Label("Access", systemImage: "crown.fill")
+                    }
+                }
+
+                if appModel.proAccess.isPro {
+                    NavigationLink {
+                        PlanHistoryView(appModel: appModel)
+                    } label: {
+                        Label("Plan history", systemImage: "clock.arrow.circlepath")
+                    }
+                } else {
+                    Button { appModel.presentPaywallFromSettings(for: .planHistory) } label: {
+                        Label("Plan history", systemImage: "lock.fill")
                     }
                 }
             }
 
             Section("Planning defaults") {
-                NavigationLink {
-                    PlanSettingsView(appModel: appModel)
-                } label: {
-                    Label("Store, budget and food preferences", systemImage: "slider.horizontal.3")
+                if appModel.proAccess.isPro {
+                    NavigationLink {
+                        PlanSettingsView(appModel: appModel)
+                    } label: {
+                        Label("Store, budget and food preferences", systemImage: "slider.horizontal.3")
+                    }
+                } else {
+                    Button { appModel.presentPaywallFromSettings(for: .savedPreferences) } label: {
+                        Label("Store, budget and food preferences", systemImage: "lock.fill")
+                    }
                 }
             }
 
@@ -61,7 +85,7 @@ struct SettingsView: View {
             Section {
                 LabeledContent("Version", value: appVersion)
             } footer: {
-                Text("This internal beta is free. Generated plans use available recipe and catalog metadata; always verify package labels and cross-contact warnings.")
+                Text("Generated plans use available recipe and catalog metadata; always verify package labels and cross-contact warnings.")
             }
         }
         .scrollContentBackground(.hidden)
@@ -89,8 +113,8 @@ private struct SubscriptionSettingsView: View {
     var body: some View {
         List {
             Section {
-                LabeledContent("Current access", value: appModel.subscriptions.isPro ? "Cove Pro" : "Free")
-                if !appModel.subscriptions.isPro {
+                LabeledContent("Current access", value: appModel.proAccess.isPro ? "Cove Pro" : "Free")
+                if !appModel.proAccess.isPro {
                     Button("View Cove Pro") { showingPaywall = true }
                 }
             }
@@ -100,6 +124,7 @@ private struct SubscriptionSettingsView: View {
                         let result = await appModel.subscriptions.restorePurchases()
                         switch result {
                         case .purchased:
+                            appModel.applyVerifiedEntitlement(appModel.subscriptions.entitlement)
                             statusMessage = "Cove Pro has been restored."
                             Haptics.success()
                         case .failed(let message):

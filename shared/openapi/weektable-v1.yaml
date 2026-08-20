@@ -242,6 +242,8 @@ components:
         priceCoverage: { type: number, minimum: 0, maximum: 1 }
         priceKind: { $ref: "#/components/schemas/PriceKind" }
         pricingProvenance: { $ref: "#/components/schemas/PricingProvenance" }
+        nutritionProvenance: { $ref: "#/components/schemas/NutritionProvenance" }
+        weeklyNutritionSummary: { $ref: "#/components/schemas/WeeklyNutritionSummary" }
         meals: { type: array, items: { $ref: "#/components/schemas/Meal" } }
         basket: { type: array, items: { $ref: "#/components/schemas/BasketItem" } }
         constraintsUsed: { $ref: "#/components/schemas/PlannerRequest" }
@@ -262,6 +264,9 @@ components:
         cookMinutes: { type: integer, minimum: 0 }
         calories: { type: integer, minimum: 0 }
         proteinGrams: { type: integer, minimum: 0 }
+        carbohydrateGrams: { type: integer, minimum: 0 }
+        fatGrams: { type: integer, minimum: 0 }
+        fiberGrams: { type: integer, minimum: 0 }
         imageAlignment: { type: number, minimum: 0, maximum: 1 }
         imageKey: { type: string, description: Cove asset key selected by the content-integrity matcher }
         imageMatch: { type: string, enum: [exact, category, fallback] }
@@ -298,6 +303,22 @@ components:
       properties:
         id: { type: string }
         planId: { type: string }
+    NutritionProvenance:
+      type: object
+      required: [kind, source]
+      properties:
+        kind: { type: string, enum: [authoritative, unverified] }
+        source: { type: string }
+        observedAt: { type: string, format: date-time }
+    WeeklyNutritionSummary:
+      type: object
+      required: [averageCaloriesPerServing, averageProteinGramsPerServing, averageCarbohydrateGramsPerServing, averageFatGramsPerServing, averageFiberGramsPerServing]
+      properties:
+        averageCaloriesPerServing: { type: integer, minimum: 0 }
+        averageProteinGramsPerServing: { type: integer, minimum: 0 }
+        averageCarbohydrateGramsPerServing: { type: integer, minimum: 0 }
+        averageFatGramsPerServing: { type: integer, minimum: 0 }
+        averageFiberGramsPerServing: { type: integer, minimum: 0 }
     GenerationUpdate:
       type: object
       required: [jobId, stage]

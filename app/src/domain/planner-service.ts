@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { buildBasket, basketTotal, normalizeIngredientName, priceCoverage, scaleMeal } from "./engine";
 import { mealConstraintIssues, preferenceScore, requiredServings, validatePlanOrThrow } from "./constraints";
 import { prepareMealContent } from "./meal-quality";
+import { validateHighProteinTarget, weeklyNutritionSummary } from "./nutrition";
 import { DEMO_MEALS, DEMO_STORE, DEMO_STORES } from "./fixtures";
 import { providerForStore } from "./grocery-providers";
 import { budgetTargetPercent, runtimeMode } from "@/server/runtime-config";
@@ -178,6 +179,18 @@ export async function generatePlan(
   });
   const observedTimes = optimized.basket.flatMap((item) => item.product ? [item.product.observedAt] : []);
   const createdAt = new Date().toISOString();
+  const nutritionProvenance = {
+    kind: "unverified" as const,
+    source: process.env.OPENAI_LIVE_PLANNING_ENABLED === "true" ? "model_recipe_estimate" : "fixture_recipe_estimate",
+  };
+  const highProteinValidation = validateHighProteinTarget(optimized.meals, nutritionProvenance);
+  if (request.nutritionStyle === "high-protein" && highProteinValidation.supported && !highProteinValidation.meetsTarget) {
+    throw new PlanGenerationError(
+      "CONSTRAINT_CONFLICT",
+      "The authoritative nutrition calculation did not meet Cove's protein target for this week.",
+      ["Choose balanced planning", "Relax another preference"],
+    );
+  }
   return {
     id: planID,
     title: `${request.dinnerCount} dinners for your week`,
@@ -197,6 +210,8 @@ export async function generatePlan(
       providerStoreId: store.providerStoreId,
       updatedAt: observedTimes.sort().at(-1) ?? createdAt,
     },
+    nutritionProvenance,
+    weeklyNutritionSummary: weeklyNutritionSummary(optimized.meals, nutritionProvenance),
     meals: optimized.meals,
     basket: optimized.basket,
     createdAt,

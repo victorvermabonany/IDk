@@ -255,7 +255,10 @@ function categoryImageKey(profile: MealQualityProfile, meal: Meal) {
 
 export function prepareMealContent(meal: Meal): Meal {
   const title = normalizeMealTitle(meal.title);
-  const normalized = { ...meal, title };
+  // Nutrition values are not yet backed by an authoritative dataset, so meals
+  // must not carry a factual high-protein label even when the planner uses the
+  // recipe estimate as a soft ranking preference.
+  const normalized = { ...meal, title, tags: meal.tags.filter((tag) => tag.toLowerCase() !== "high-protein") };
   const exactImage = EXACT_IMAGE_KEYS[meal.id];
   if (exactImage) return { ...normalized, imageKey: exactImage, imageMatch: "exact" };
   const categoryImage = categoryImageKey(profileMeal(normalized), normalized);

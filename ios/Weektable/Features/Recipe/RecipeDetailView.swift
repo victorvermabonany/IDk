@@ -209,8 +209,8 @@ private struct CoveNutritionPanel: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
-                    SectionLabel(text: "Nutrition")
-                    Text("A useful snapshot")
+                    SectionLabel(text: "Estimated nutrition")
+                    Text("A planning snapshot")
                         .font(.coveCardTitle)
                 }
                 Spacer()
@@ -250,7 +250,7 @@ private struct CoveNutritionPanel: View {
                     }
                     ProgressView(value: Double(proteinGrams), total: 70)
                         .tint(WeektableTheme.terracotta)
-                    Text("A simple per-serving view, kept intentionally easy to read.")
+                    Text("Recipe estimate per serving. Verify product labels; this is not a verified macro calculation.")
                         .font(.caption)
                         .foregroundStyle(WeektableTheme.secondaryInk)
                         .fixedSize(horizontal: false, vertical: true)

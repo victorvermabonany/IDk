@@ -1,6 +1,7 @@
 import { PlanGenerationError } from "@/domain/types";
 import { logEvent } from "@/server/observability";
 import { RequestGuardError } from "@/server/request-guard";
+import { PremiumAccessError } from "@/server/premium-access";
 import { ServiceConfigurationError } from "@/server/runtime-config";
 import { ZodError } from "zod";
 
@@ -13,6 +14,9 @@ export function problemResponse(error: unknown) {
   if (error instanceof RequestGuardError) {
     const status = error.code === "RATE_LIMITED" ? 429 : error.code === "REQUEST_TOO_LARGE" ? 413 : 400;
     return Response.json({ error: { code: error.code, message: error.message, retryAfterSeconds: error.retryAfterSeconds } }, { status, headers: error.retryAfterSeconds ? { "Retry-After": String(error.retryAfterSeconds) } : undefined });
+  }
+  if (error instanceof PremiumAccessError) {
+    return Response.json({ error: { code: error.code, message: error.message, feature: error.feature } }, { status: 402 });
   }
   if (error instanceof ServiceConfigurationError) {
     logEvent("error", "service.configuration_invalid", { fields: error.missingConfiguration });

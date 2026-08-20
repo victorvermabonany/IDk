@@ -19,6 +19,10 @@ struct WeekHomeView: View {
 
                     budgetSummary(plan)
 
+                    if appModel.proAccess.isPro {
+                        WeeklyNutritionSummaryCard(plan: plan)
+                    }
+
                     ForEach(Array(plan.meals.enumerated()), id: \.element.id) { index, meal in
                         WeekMealRow(
                             meal: meal,
@@ -112,6 +116,55 @@ struct WeekHomeView: View {
             guard item.mealIDs.contains(meal.id) else { return partial }
             return partial + item.totalPriceCents / max(item.mealIDs.count, 1)
         }
+    }
+}
+
+private struct WeeklyNutritionSummaryCard: View {
+    let plan: MealPlan
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                SectionLabel(text: "Weekly nutrition")
+                Spacer()
+                CoveStatusPill(text: "PRO", symbol: "crown.fill", color: WeektableTheme.brand)
+            }
+
+            if let summary = plan.authoritativeNutritionSummary {
+                HStack(spacing: 8) {
+                    metric("Calories", "\(summary.averageCaloriesPerServing)")
+                    metric("Protein", "\(summary.averageProteinGramsPerServing)g")
+                    metric("Carbs", "\(summary.averageCarbohydrateGramsPerServing)g")
+                }
+                HStack(spacing: 8) {
+                    metric("Fat", "\(summary.averageFatGramsPerServing)g")
+                    metric("Fiber", "\(summary.averageFiberGramsPerServing)g")
+                }
+                Text("Average per dinner serving · \(plan.nutritionProvenance?.source ?? "Verified nutrition source")")
+                    .font(.caption2)
+                    .foregroundStyle(WeektableTheme.secondaryInk)
+            } else {
+                Label(
+                    "Verified macro data is not available for this plan yet, so Cove is not showing a weekly total.",
+                    systemImage: "info.circle"
+                )
+                .font(.caption)
+                .foregroundStyle(WeektableTheme.secondaryInk)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(14)
+        .coveCard(radius: 18, shadow: false)
+    }
+
+    private func metric(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value).font(.headline).monospacedDigit()
+            Text(label).font(.caption2).foregroundStyle(WeektableTheme.secondaryInk)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(9)
+        .background(WeektableTheme.surface, in: RoundedRectangle(cornerRadius: 12))
     }
 }
 

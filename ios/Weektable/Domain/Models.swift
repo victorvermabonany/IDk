@@ -13,7 +13,7 @@ enum NutritionStyle: String, Codable, CaseIterable, Identifiable, Hashable, Send
     var title: String {
         switch self {
         case .balanced: "Balanced"
-        case .highProtein: "High protein"
+        case .highProtein: "Protein-forward"
         case .vegetarian: "Vegetarian"
         case .quick: "Quick & easy"
         case .budgetFirst: "Budget first"
@@ -24,7 +24,7 @@ enum NutritionStyle: String, Codable, CaseIterable, Identifiable, Hashable, Send
     var subtitle: String {
         switch self {
         case .balanced: "A little of everything"
-        case .highProtein: "Protein-forward dinners"
+        case .highProtein: "Uses recipe-estimated protein"
         case .vegetarian: "No meat or seafood"
         case .quick: "Fewer steps and less cleanup"
         case .budgetFirst: "Stretch every package"
@@ -177,6 +177,9 @@ struct Meal: Codable, Hashable, Identifiable, Sendable {
     let cookMinutes: Int
     let calories: Int
     let proteinGrams: Int
+    var carbohydrateGrams: Int? = nil
+    var fatGrams: Int? = nil
+    var fiberGrams: Int? = nil
     let imageAlignment: Double
     var imageKey: String? = nil
     var imageMatch: String? = nil
@@ -206,6 +209,22 @@ struct Meal: Codable, Hashable, Identifiable, Sendable {
         "egg-quinoa-vegetable-bowls": "meal-egg-quinoa-vegetable-bowls"
     ]
     private static let supportedImageAssets: Set<String> = Set(exactImageAssetsByMealID.values)
+}
+
+struct WeeklyNutritionSummary: Codable, Equatable, Sendable {
+    let averageCaloriesPerServing: Int
+    let averageProteinGramsPerServing: Int
+    let averageCarbohydrateGramsPerServing: Int
+    let averageFatGramsPerServing: Int
+    let averageFiberGramsPerServing: Int
+}
+
+struct NutritionProvenance: Codable, Equatable, Sendable {
+    let kind: String
+    let source: String
+    let observedAt: String?
+
+    var isAuthoritative: Bool { kind == "authoritative" }
 }
 
 enum Department: String, Codable, CaseIterable, Identifiable, Hashable, Sendable {
@@ -253,6 +272,8 @@ struct MealPlan: Codable, Equatable, Identifiable, Sendable {
     let priceKind: PriceKind
     let priceObservedAt: String
     let pricingProvenance: PricingProvenance?
+    let nutritionProvenance: NutritionProvenance?
+    let weeklyNutritionSummary: WeeklyNutritionSummary?
     var meals: [Meal]
     var basket: [BasketItem]
     let createdAt: String
@@ -262,6 +283,7 @@ struct MealPlan: Codable, Equatable, Identifiable, Sendable {
         id: String, title: String, store: Store, constraintsUsed: PlannerRequest = PlannerRequest(),
         budgetCents: Int, internalTargetCents: Int? = nil, estimatedTotalCents: Int,
         priceCoverage: Double, priceKind: PriceKind, priceObservedAt: String = "", pricingProvenance: PricingProvenance? = nil,
+        nutritionProvenance: NutritionProvenance? = nil, weeklyNutritionSummary: WeeklyNutritionSummary? = nil,
         meals: [Meal], basket: [BasketItem], createdAt: String = "", safetyNotice: String = ""
     ) {
         self.id = id
@@ -275,6 +297,8 @@ struct MealPlan: Codable, Equatable, Identifiable, Sendable {
         self.priceKind = priceKind
         self.priceObservedAt = priceObservedAt
         self.pricingProvenance = pricingProvenance
+        self.nutritionProvenance = nutritionProvenance
+        self.weeklyNutritionSummary = weeklyNutritionSummary
         self.meals = meals
         self.basket = basket
         self.createdAt = createdAt
@@ -283,6 +307,12 @@ struct MealPlan: Codable, Equatable, Identifiable, Sendable {
 
     var remainingCents: Int { budgetCents - estimatedTotalCents }
     var totalMinutes: Int { meals.reduce(0) { $0 + $1.totalMinutes } }
+    var createdDate: Date {
+        ISO8601DateFormatter().date(from: createdAt) ?? .distantPast
+    }
+    var authoritativeNutritionSummary: WeeklyNutritionSummary? {
+        nutritionProvenance?.isAuthoritative == true ? weeklyNutritionSummary : nil
+    }
 }
 
 enum GenerationStage: String, Codable, CaseIterable, Identifiable, Hashable, Sendable {

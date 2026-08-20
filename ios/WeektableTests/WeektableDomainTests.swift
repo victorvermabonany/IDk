@@ -217,7 +217,7 @@ final class WeektableDomainTests: XCTestCase {
         XCTAssertNotEqual(preview.meal.title, DemoData.meals[0].title)
     }
 
-    func testFreeBetaAllowsAnotherWeekWithoutRemovingCurrentPlan() async {
+    func testFreeUserSecondGenerationIsBlockedWithoutRemovingCurrentPlan() async {
         await MainActor.run {
             let persistence = PersistenceController(inMemory: true)
             let model = AppModel(repository: DemoPlanRepository(), persistence: persistence, subscriptions: SubscriptionService())
@@ -227,10 +227,106 @@ final class WeektableDomainTests: XCTestCase {
 
             model.planAnotherWeek()
 
-            XCTAssertNil(model.paywallTrigger)
-            XCTAssertEqual(model.rootFlow, .planner)
+            XCTAssertEqual(model.paywallTrigger, .anotherWeek)
+            XCTAssertEqual(model.rootFlow, .main)
             XCTAssertNotNil(model.plan)
         }
+    }
+
+    @MainActor
+    func testFreeUserCanCompleteFirstWeek() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let model = AppModel(repository: DemoPlanRepository(), persistence: persistence, subscriptions: SubscriptionService())
+        model.rootFlow = .planner
+
+        model.beginGeneration()
+        for _ in 0..<60 where model.rootFlow != .main {
+            try await Task.sleep(for: .milliseconds(100))
+        }
+
+        XCTAssertEqual(model.rootFlow, .main)
+        XCTAssertEqual(model.completedPlanCount, 1)
+        XCTAssertNotNil(model.plan)
+        XCTAssertNil(model.paywallTrigger)
+    }
+
+    @MainActor
+    func testProAllowsUnlimitedGenerationAndSwaps() throws {
+        let persistence = PersistenceController(inMemory: true)
+        try persistence.save(
+            EntitlementCache(
+                status: .pro,
+                productIDs: [SubscriptionProductID.annual],
+                verifiedAt: .now,
+                expirationDate: Date.now.addingTimeInterval(86_400)
+            ),
+            key: PersistenceKey.entitlementCache
+        )
+        let model = AppModel(repository: DemoPlanRepository(), persistence: persistence, subscriptions: SubscriptionService())
+        model.plan = DemoData.plan
+        model.rootFlow = .main
+        model.completedPlanCount = 50
+        model.completedSwapCount = 50
+
+        model.planAnotherWeek()
+        XCTAssertEqual(model.rootFlow, .planner)
+        XCTAssertNil(model.paywallTrigger)
+
+        model.rootFlow = .main
+        model.openSwap(for: DemoData.plan.meals[0])
+        XCTAssertEqual(model.swapMeal?.id, DemoData.plan.meals[0].id)
+        XCTAssertNil(model.paywallTrigger)
+    }
+
+    @MainActor
+    func testProSavedPreferencesAndEntitlementRestoreOnRelaunch() throws {
+        let persistence = PersistenceController(inMemory: true)
+        let entitlement = EntitlementCache(
+            status: .pro,
+            productIDs: [SubscriptionProductID.monthly],
+            verifiedAt: .now,
+            expirationDate: Date.now.addingTimeInterval(86_400)
+        )
+        try persistence.save(entitlement, key: PersistenceKey.entitlementCache)
+        let first = AppModel(repository: DemoPlanRepository(), persistence: persistence, subscriptions: SubscriptionService())
+        var preferences = PlannerRequest()
+        preferences.budgetCents = 14_500
+        preferences.householdSize = 4
+        preferences.dinnerCount = 6
+        preferences.preferredCuisines = ["Mediterranean"]
+        preferences.pantryItems.insert("rice")
+        first.updateDraft(preferences)
+
+        let relaunched = AppModel(repository: DemoPlanRepository(), persistence: persistence, subscriptions: SubscriptionService())
+        XCTAssertTrue(relaunched.proAccess.isPro)
+        XCTAssertEqual(relaunched.entitlementCache, entitlement)
+        XCTAssertEqual(relaunched.savedPlanningPreferences, preferences)
+        relaunched.completedPlanCount = 3
+        relaunched.planAnotherWeek()
+        XCTAssertEqual(relaunched.plannerDraft, preferences)
+
+        var expired = entitlement
+        expired.status = .expired
+        expired.expirationDate = Date.now.addingTimeInterval(-60)
+        relaunched.applyVerifiedEntitlement(expired)
+        XCTAssertFalse(relaunched.proAccess.isPro)
+    }
+
+    @MainActor
+    func testPlanHistoryLoadsSavedSnapshotsWithoutRegeneration() throws {
+        let persistence = PersistenceController(inMemory: true)
+        try persistence.save(
+            EntitlementCache(status: .pro, productIDs: [SubscriptionProductID.annual], verifiedAt: .now),
+            key: PersistenceKey.entitlementCache
+        )
+        try persistence.save([DemoData.plan], key: PersistenceKey.planHistory)
+        let model = AppModel(repository: DemoPlanRepository(), persistence: persistence, subscriptions: SubscriptionService())
+
+        XCTAssertEqual(model.planHistory.map(\.id), [DemoData.plan.id])
+        model.openHistoricalPlan(DemoData.plan)
+        XCTAssertEqual(model.plan, DemoData.plan)
+        XCTAssertEqual(model.selectedTab, .week)
+        XCTAssertNil(model.pendingGenerationJob)
     }
 
     func testDinnerCountAndHouseholdScaleActualIngredients() async throws {

@@ -40,8 +40,21 @@ export interface RecipeIngredient { ingredientId: string; name: string; quantity
 export interface Meal {
   id: string; day: string; title: string; description: string; servings: number;
   prepMinutes: number; cookMinutes: number; calories: number; proteinGrams: number;
+  carbohydrateGrams?: number; fatGrams?: number; fiberGrams?: number;
   cuisine: string; tags: string[]; ingredients: RecipeIngredient[]; instructions: string[]; imagePosition: string;
   imageKey?: string; imageMatch?: "exact" | "category" | "fallback";
+}
+export interface NutritionProvenance {
+  kind: "authoritative" | "unverified";
+  source: string;
+  observedAt?: string;
+}
+export interface WeeklyNutritionSummary {
+  averageCaloriesPerServing: number;
+  averageProteinGramsPerServing: number;
+  averageCarbohydrateGramsPerServing: number;
+  averageFatGramsPerServing: number;
+  averageFiberGramsPerServing: number;
 }
 export interface ProviderStore {
   id: string; providerStoreId: string; name: string; retailer: string; address: string; zipCode: string;
@@ -79,6 +92,8 @@ export interface MealPlan {
   internalTargetCents: number; estimatedTotalCents: number; priceCoverage: number;
   priceKind: ProviderStore["priceKind"]; priceObservedAt: string; meals: Meal[]; basket: BasketItem[];
   pricingProvenance: PricingProvenance;
+  nutritionProvenance?: NutritionProvenance;
+  weeklyNutritionSummary?: WeeklyNutritionSummary;
   createdAt: string; safetyNotice: string;
 }
 export interface SwapPreview {

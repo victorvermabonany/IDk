@@ -83,6 +83,8 @@ enum PersistenceKey {
     static let completedPlanCount = "completed-plan-count"
     static let completedSwapCount = "completed-swap-count"
     static let entitlementCache = "entitlement-cache"
+    static let savedPlanningPreferences = "saved-planning-preferences"
+    static let planHistory = "plan-history"
 }
 
 struct GroceryState: Codable, Equatable {
