@@ -195,67 +195,6 @@ jobs:
           capture week -cove-ui-test-reset -cove-ui-test-active-plan -cove-ui-test-week
           capture assistant -cove-ui-test-reset -cove-ui-test-active-plan -cove-ui-test-assistant
 
-      - name: Capture compact, standard, and Pro Max layout QA
-        working-directory: ios
-        run: |
-          set -euo pipefail
-          APP_PATH=build/DerivedData/Build/Products/Debug-iphonesimulator/Weektable.app
-          BUNDLE_ID=com.weektable.ios
-          SCREENSHOT_DIR=build/ui-screenshots
-          RUNTIME_ID=$(xcrun simctl list runtimes -j | jq -r '[.runtimes[] | select(.isAvailable == true and (.identifier | contains("iOS")))][-1].identifier // empty')
-          [[ -n "$RUNTIME_ID" ]] || { echo "No available iOS Simulator runtime." >&2; exit 1; }
-
-          resolve_type() {
-            local type_id=""
-            for name in "$@"; do
-              type_id=$(xcrun simctl list devicetypes -j | jq -r --arg name "$name" '[.devicetypes[] | select(.name == $name)][0].identifier // empty')
-              [[ -n "$type_id" ]] && { echo "$type_id"; return; }
-            done
-            return 1
-          }
-
-          capture_device() {
-            local label="$1"
-            local type_id="$2"
-            local device_id
-            device_id=$(xcrun simctl create "Cove-QA-$label" "$type_id" "$RUNTIME_ID")
-            xcrun simctl boot "$device_id"
-            local installed=false
-            for attempt in {1..30}; do
-              if xcrun simctl install "$device_id" "$APP_PATH" 2>/dev/null; then
-                installed=true
-                break
-              fi
-              sleep 2
-            done
-            [[ "$installed" == true ]] || { echo "The $label simulator did not become ready in time." >&2; exit 1; }
-            xcrun simctl ui "$device_id" appearance light
-            xcrun simctl status_bar "$device_id" override --time 9:41 --batteryState charged --batteryLevel 100 || true
-
-            capture() {
-              local screen="$1"
-              shift
-              xcrun simctl terminate "$device_id" "$BUNDLE_ID" 2>/dev/null || true
-              xcrun simctl launch "$device_id" "$BUNDLE_ID" "$@"
-              sleep 2
-              xcrun simctl io "$device_id" screenshot "$SCREENSHOT_DIR/$label-$screen.png"
-            }
-
-            capture home -cove-ui-test-reset -cove-ui-test-active-plan
-            capture week -cove-ui-test-reset -cove-ui-test-active-plan -cove-ui-test-week
-            capture groceries -cove-ui-test-reset -cove-ui-test-active-plan -cove-ui-test-groceries
-            capture recipe -cove-ui-test-reset -cove-ui-test-active-plan -cove-ui-test-recipe
-            xcrun simctl shutdown "$device_id"
-            xcrun simctl delete "$device_id"
-          }
-
-          COMPACT_TYPE=$(resolve_type "iPhone SE (3rd generation)" "iPhone 13 mini")
-          STANDARD_TYPE=$(resolve_type "iPhone 16" "iPhone 15" "iPhone 14")
-          MAX_TYPE=$(resolve_type "iPhone 16 Pro Max" "iPhone 15 Pro Max" "iPhone 14 Pro Max")
-          capture_device compact "$COMPACT_TYPE"
-          capture_device standard "$STANDARD_TYPE"
-          capture_device pro-max "$MAX_TYPE"
-
       - name: Upload the Appetize-ready ZIP
         uses: actions/upload-artifact@v4
         with:
@@ -288,6 +227,84 @@ jobs:
           name: Cove-Xcode-Test-Log
           path: ios/build/xcode-test.log
           if-no-files-found: ignore
+          retention-days: 14
+
+  layout-qa:
+    name: ${{ matrix.label }} iPhone layout QA
+    needs: simulator-build
+    runs-on: macos-15
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: Compact
+            device_names: "iPhone SE (3rd generation)|iPhone 13 mini"
+          - label: Standard
+            device_names: "iPhone 16|iPhone 15|iPhone 14"
+          - label: Pro-Max
+            device_names: "iPhone 16 Pro Max|iPhone 15 Pro Max|iPhone 14 Pro Max"
+
+    steps:
+      - name: Download the validated simulator app
+        uses: actions/download-artifact@v4
+        with:
+          name: Cove-Appetize
+          path: ios/build/layout-qa
+
+      - name: Capture key screens
+        working-directory: ios
+        env:
+          DEVICE_NAMES: ${{ matrix.device_names }}
+          QA_LABEL: ${{ matrix.label }}
+        run: |
+          set -euo pipefail
+          mkdir -p build/layout-qa/app build/layout-qa/screenshots
+          /usr/bin/ditto -x -k build/layout-qa/Cove-Appetize.zip build/layout-qa/app
+          APP_PATH=build/layout-qa/app/Weektable.app
+          [[ -d "$APP_PATH" ]] || { echo "The validated simulator app could not be unpacked." >&2; exit 1; }
+
+          DEVICE_TYPE_ID=""
+          IFS='|' read -ra CANDIDATES <<< "$DEVICE_NAMES"
+          for name in "${CANDIDATES[@]}"; do
+            DEVICE_TYPE_ID=$(xcrun simctl list devicetypes -j | jq -r --arg name "$name" '[.devicetypes[] | select(.name == $name)][0].identifier // empty')
+            [[ -n "$DEVICE_TYPE_ID" ]] && break
+          done
+          [[ -n "$DEVICE_TYPE_ID" ]] || { echo "No requested $QA_LABEL iPhone device type is available." >&2; exit 1; }
+
+          RUNTIME_ID=$(xcrun simctl list runtimes -j | jq -r '[.runtimes[] | select(.isAvailable == true and (.identifier | contains("iOS")))][-1].identifier // empty')
+          [[ -n "$RUNTIME_ID" ]] || { echo "No iOS Simulator runtime is available." >&2; exit 1; }
+          DEVICE_ID=$(xcrun simctl create "Cove-$QA_LABEL-QA" "$DEVICE_TYPE_ID" "$RUNTIME_ID")
+          xcrun simctl boot "$DEVICE_ID"
+
+          installed=false
+          for attempt in {1..30}; do
+            if xcrun simctl install "$DEVICE_ID" "$APP_PATH" 2>/dev/null; then installed=true; break; fi
+            sleep 2
+          done
+          [[ "$installed" == true ]] || { echo "The $QA_LABEL simulator did not become ready in time." >&2; exit 1; }
+          xcrun simctl ui "$DEVICE_ID" appearance light
+          xcrun simctl status_bar "$DEVICE_ID" override --time 9:41 --batteryState charged --batteryLevel 100 || true
+
+          capture() {
+            local screen="$1"
+            shift
+            xcrun simctl terminate "$DEVICE_ID" com.weektable.ios 2>/dev/null || true
+            xcrun simctl launch "$DEVICE_ID" com.weektable.ios "$@"
+            sleep 2
+            xcrun simctl io "$DEVICE_ID" screenshot "build/layout-qa/screenshots/$screen.png"
+          }
+          capture home -cove-ui-test-reset -cove-ui-test-active-plan
+          capture week -cove-ui-test-reset -cove-ui-test-active-plan -cove-ui-test-week
+          capture groceries -cove-ui-test-reset -cove-ui-test-active-plan -cove-ui-test-groceries
+          capture recipe -cove-ui-test-reset -cove-ui-test-active-plan -cove-ui-test-recipe
+
+      - name: Upload ${{ matrix.label }} screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cove-Layout-QA-${{ matrix.label }}
+          path: ios/build/layout-qa/screenshots/*.png
+          if-no-files-found: error
           retention-days: 14
 
   browserstack-device-build:
