@@ -201,7 +201,7 @@ struct HomeView: View {
         Button {
             if plan == nil { appModel.showPlanner() } else { appModel.selectGroceries() }
         } label: {
-            DashboardTile(title: "Groceries", subtitle: plan == nil ? "Build a week first" : "\(itemsLeft) items left", detail: plan.map { _ in "Estimated basket · \(appModel.groceryTotalCents.currency)" }, imageName: "cove-grocery-bag")
+            DashboardTile(title: "Groceries", subtitle: plan == nil ? "Build a week first" : "\(itemsLeft) items left", detail: nil, imageName: "cove-grocery-bag")
         }
         .buttonStyle(.plain)
     }
