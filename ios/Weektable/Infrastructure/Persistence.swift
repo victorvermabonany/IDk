@@ -76,6 +76,7 @@ enum PersistenceKey {
     static let plannerDraft = "planner-draft"
     static let cachedPlan = "cached-plan"
     static let generationJob = "generation-job"
+    static let generationUpdate = "generation-update"
     static let generationSubmissionKey = "generation-submission-key"
     static let groceryState = "grocery-state"
     static let hasCompletedWelcome = "has-completed-welcome"

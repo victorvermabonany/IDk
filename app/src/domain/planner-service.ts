@@ -7,6 +7,26 @@ import { providerForStore } from "./grocery-providers";
 import { budgetTargetPercent, runtimeMode } from "@/server/runtime-config";
 import { PlanGenerationError, type BasketItem, type GroceryProvider, type Meal, type MealPlan, type PlannerRequest, type ProviderStore } from "./types";
 
+export type GenerationProgressStage =
+  | "Building your grocery list"
+  | "Checking your store"
+  | "Balancing your budget"
+  | "Finishing your week";
+
+export interface GenerationProgressMetadata {
+  ingredientCount?: number;
+  productsMatched?: number;
+  reusedIngredientCount?: number;
+  underBudgetCents?: number;
+}
+
+export interface GenerationProgressEvent {
+  stage: GenerationProgressStage;
+  metadata?: GenerationProgressMetadata;
+}
+
+export type GenerationProgressReporter = (event: GenerationProgressEvent) => Promise<void>;
+
 function combinations<T>(items: T[], count: number): T[][] {
   const result: T[][] = [];
   const visit = (start: number, current: T[]) => {
@@ -68,7 +88,7 @@ async function priceCombination(meals: Meal[], request: PlannerRequest, store: P
   return { basket, coverage: priceCoverage(basket), total: basketTotal(basket) };
 }
 
-async function optimizeCandidates(candidates: Meal[], request: PlannerRequest, store: ProviderStore, provider: GroceryProvider) {
+function eligibleCandidates(candidates: Meal[], request: PlannerRequest) {
   const servings = requiredServings(request);
   const normalizedTitles = new Set<string>();
   const eligible = candidates
@@ -92,6 +112,10 @@ async function optimizeCandidates(candidates: Meal[], request: PlannerRequest, s
     );
   }
 
+  return eligible;
+}
+
+async function optimizeCandidates(eligible: Meal[], request: PlannerRequest, store: ProviderStore, provider: GroceryProvider) {
   const targetPercent = budgetTargetPercent(store.priceKind);
   const target = Math.round(request.budgetCents * targetPercent);
   let best: { meals: Meal[]; basket: BasketItem[]; coverage: number; total: number; score: number } | undefined;
@@ -128,10 +152,30 @@ async function candidatePool(request: PlannerRequest): Promise<Meal[]> {
   return DEMO_MEALS;
 }
 
-export async function generatePlan(request: PlannerRequest, planID: string = randomUUID()): Promise<MealPlan> {
+export async function generatePlan(
+  request: PlannerRequest,
+  planID: string = randomUUID(),
+  reportProgress: GenerationProgressReporter = async () => {},
+): Promise<MealPlan> {
+  const candidates = await candidatePool(request);
+  await reportProgress({ stage: "Building your grocery list" });
+  const eligible = eligibleCandidates(candidates, request);
+
+  await reportProgress({ stage: "Checking your store" });
   const { store, provider } = await resolveStore(request);
-  const optimized = await optimizeCandidates(await candidatePool(request), request, store, provider);
+
+  await reportProgress({ stage: "Balancing your budget" });
+  const optimized = await optimizeCandidates(eligible, request, store, provider);
   validatePlanOrThrow(optimized.meals, request);
+  await reportProgress({
+    stage: "Finishing your week",
+    metadata: {
+      ingredientCount: optimized.basket.length,
+      productsMatched: optimized.basket.filter((item) => item.product !== null).length,
+      reusedIngredientCount: optimized.basket.filter((item) => item.mealIds.length > 1).length,
+      underBudgetCents: Math.max(0, request.budgetCents - optimized.total),
+    },
+  });
   const observedTimes = optimized.basket.flatMap((item) => item.product ? [item.product.observedAt] : []);
   const createdAt = new Date().toISOString();
   return {

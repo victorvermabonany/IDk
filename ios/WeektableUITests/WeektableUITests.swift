@@ -32,4 +32,20 @@ final class WeektableUITests: XCTestCase {
         XCTAssertTrue(app.tabBars.buttons["Pantry"].exists)
         XCTAssertFalse(app.buttons["Continue as guest"].exists)
     }
+
+    func testGenerationShowsCurrentBackendStageAndRealMetadata() {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-cove-ui-test-reset",
+            "-cove-ui-test-generation",
+            "-cove-ui-test-pause-generation",
+        ]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Checking your store"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["Matching ingredients to available products and prices."].exists)
+        XCTAssertTrue(app.staticTexts["18 ingredients combined"].exists)
+        XCTAssertTrue(app.staticTexts["16 products matched"].exists)
+        XCTAssertFalse(app.progressIndicators.firstMatch.exists)
+    }
 }

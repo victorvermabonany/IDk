@@ -287,12 +287,45 @@ struct MealPlan: Codable, Equatable, Identifiable, Sendable {
 
 enum GenerationStage: String, Codable, CaseIterable, Identifiable, Hashable, Sendable {
     case planning = "Planning your meals"
-    case combining = "Combining ingredients"
-    case packages = "Checking complete packages"
+    case combining = "Building your grocery list"
+    case packages = "Checking your store"
     case budget = "Balancing your budget"
-    case finalizing = "Finalizing your week"
+    case finalizing = "Finishing your week"
 
     var id: String { rawValue }
+
+    var supportingCopy: String {
+        switch self {
+        case .planning: "Finding meals that fit your preferences."
+        case .combining: "Combining ingredients across the week."
+        case .packages: "Matching ingredients to available products and prices."
+        case .budget: "Making sure the basket fits your target."
+        case .finalizing: "Putting everything together."
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let value = try container.decode(String.self)
+        switch value {
+        case "Combining ingredients": self = .combining
+        case "Checking complete packages": self = .packages
+        case "Finalizing your week": self = .finalizing
+        default:
+            guard let stage = Self(rawValue: value) else {
+                throw DecodingError.dataCorruptedError(
+                    in: container,
+                    debugDescription: "Unknown generation stage: \(value)"
+                )
+            }
+            self = stage
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
 }
 
 struct GenerationJob: Codable, Sendable {
@@ -307,11 +340,41 @@ struct GenerationJob: Codable, Sendable {
 struct GenerationUpdate: Codable, Sendable {
     let jobID: String
     let stage: GenerationStage
-    let progress: Double
     let completedPlanID: String?
+    let metadata: GenerationMetadata?
+
+    init(jobID: String, stage: GenerationStage, completedPlanID: String?, metadata: GenerationMetadata? = nil) {
+        self.jobID = jobID
+        self.stage = stage
+        self.completedPlanID = completedPlanID
+        self.metadata = metadata
+    }
 
     enum CodingKeys: String, CodingKey {
-        case jobID = "jobId", stage, progress, completedPlanID = "completedPlanId"
+        case jobID = "jobId", stage, completedPlanID = "completedPlanId", metadata
+    }
+}
+
+struct GenerationMetadata: Codable, Equatable, Sendable {
+    let ingredientCount: Int?
+    let productsMatched: Int?
+    let reusedIngredientCount: Int?
+    let underBudgetCents: Int?
+
+    init(
+        ingredientCount: Int? = nil,
+        productsMatched: Int? = nil,
+        reusedIngredientCount: Int? = nil,
+        underBudgetCents: Int? = nil
+    ) {
+        self.ingredientCount = ingredientCount
+        self.productsMatched = productsMatched
+        self.reusedIngredientCount = reusedIngredientCount
+        self.underBudgetCents = underBudgetCents
+    }
+
+    var isEmpty: Bool {
+        ingredientCount == nil && productsMatched == nil && reusedIngredientCount == nil && underBudgetCents == nil
     }
 }
 

@@ -31,7 +31,7 @@ struct GenerationFailure: Equatable {
                     return constraintFailure(request: request)
                 case "UNPRICED_BASKET", "PROVIDER_UNAVAILABLE":
                     return pricingFailure
-                case "MODEL_FAILURE":
+                case "MODEL_FAILURE", "GENERATION_FAILED":
                     return temporaryFailure
                 default:
                     if status == 404 { return expiredFailure }
@@ -49,7 +49,7 @@ struct GenerationFailure: Equatable {
         let people = request.householdSize == 1 ? "person" : "people"
         return GenerationFailure(
             kind: .budget,
-            title: "We couldn’t make this week fit.",
+            title: "We couldn’t make this week fit your current budget.",
             message: "\(request.dinnerCount) dinners for \(request.householdSize) \(people) won’t fit within your \(request.budgetCents.currency) budget with the current preferences."
         )
     }
@@ -75,7 +75,7 @@ struct GenerationFailure: Equatable {
     private static let temporaryFailure = GenerationFailure(
         kind: .temporary,
         title: "We couldn’t finish your week.",
-        message: "Nothing you entered was lost. Please try again in a moment."
+        message: "Your answers are still saved. Please try again in a moment."
     )
 
     private static let offlineFailure = GenerationFailure(

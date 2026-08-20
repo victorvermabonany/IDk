@@ -48,8 +48,15 @@ actor DemoPlanRepository: PlanRepository {
                         GenerationUpdate(
                             jobID: jobID,
                             stage: stage,
-                            progress: Double(index + 1) / Double(GenerationStage.allCases.count),
-                            completedPlanID: index == GenerationStage.allCases.count - 1 ? currentPlan.id : nil
+                            completedPlanID: index == GenerationStage.allCases.count - 1 ? currentPlan.id : nil,
+                            metadata: index == GenerationStage.allCases.count - 1
+                                ? GenerationMetadata(
+                                    ingredientCount: currentPlan.basket.count,
+                                    productsMatched: currentPlan.basket.filter { $0.totalPriceCents > 0 }.count,
+                                    reusedIngredientCount: currentPlan.basket.filter { $0.mealIDs.count > 1 }.count,
+                                    underBudgetCents: max(0, currentPlan.budgetCents - currentPlan.estimatedTotalCents)
+                                )
+                                : nil
                         )
                     )
                 }
@@ -111,12 +118,24 @@ actor APIPlanRepository: PlanRepository {
             let task = Task {
                 do {
                     var finished = false
-                    var delivered = Set<String>()
+                    var lastSignature: String?
                     while !finished {
                         let response: UpdatesEnvelope = try await client.send("/v1/generation-jobs/\(jobID)")
-                        for update in response.updates {
-                            let signature = "\(update.stage.rawValue):\(update.progress):\(update.completedPlanID ?? "")"
-                            guard delivered.insert(signature).inserted else { continue }
+                        if let update = response.updates.last {
+                            let metadata = update.metadata
+                            let signature = [
+                                update.stage.rawValue,
+                                update.completedPlanID ?? "",
+                                metadata?.ingredientCount.map { String($0) } ?? "",
+                                metadata?.productsMatched.map { String($0) } ?? "",
+                                metadata?.reusedIngredientCount.map { String($0) } ?? "",
+                                metadata?.underBudgetCents.map { String($0) } ?? "",
+                            ].joined(separator: ":")
+                            guard signature != lastSignature else {
+                                if !finished { try await Task.sleep(for: .seconds(1)) }
+                                continue
+                            }
+                            lastSignature = signature
                             continuation.yield(update)
                             finished = update.completedPlanID != nil
                         }

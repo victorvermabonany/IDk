@@ -48,7 +48,7 @@ final class AppModel {
     var plan: MealPlan?
     var groceryState = GroceryState()
     var generationStage: GenerationStage = .planning
-    var generationProgress = 0.05
+    var generationMetadata: GenerationMetadata?
     var generationFailure: GenerationFailure?
     var plannerEntryPoint: PlannerEntryPoint = .store
     var pendingGenerationJob: GenerationJob?
@@ -74,6 +74,9 @@ final class AppModel {
     private let analytics: any AnalyticsClient
     private let repository: any PlanRepository
     private var generationTask: Task<Void, Never>?
+#if DEBUG
+    private var generationObservationPausedForUITests = false
+#endif
 
     init(
         repository: any PlanRepository,
@@ -154,7 +157,8 @@ final class AppModel {
         generationTask = nil
         generationFailure = nil
         generationStage = .planning
-        generationProgress = 0.05
+        generationMetadata = nil
+        try? persistence.remove(key: PersistenceKey.generationUpdate)
         rootFlow = .generation
         Task { await analytics.track(.generationStarted) }
         let request = plannerDraft
@@ -167,9 +171,14 @@ final class AppModel {
                 let job = try await repository.createPlan(request: request, idempotencyKey: idempotencyKey)
                 pendingGenerationJob = job
                 try? persistence.save(job, key: PersistenceKey.generationJob)
+                try? persistence.save(
+                    GenerationUpdate(jobID: job.id, stage: .planning, completedPlanID: nil),
+                    key: PersistenceKey.generationUpdate
+                )
                 try? persistence.remove(key: PersistenceKey.generationSubmissionKey)
                 try await observeGeneration(job)
             } catch {
+                generationTask = nil
                 clearTerminalGenerationJob(for: error)
                 generationFailure = GenerationFailure.userFacing(for: error, request: request)
                 await analytics.track(.generationFailed)
@@ -179,12 +188,16 @@ final class AppModel {
     }
 
     func resumeGenerationIfNeeded() {
+#if DEBUG
+        guard !generationObservationPausedForUITests else { return }
+#endif
         guard rootFlow == .generation, generationTask == nil, let job = pendingGenerationJob else { return }
         generationTask = Task { [weak self] in
             guard let self else { return }
             do {
                 try await observeGeneration(job)
             } catch {
+                generationTask = nil
                 clearTerminalGenerationJob(for: error)
                 generationFailure = GenerationFailure.userFacing(for: error, request: plannerDraft)
                 Haptics.warning()
@@ -217,6 +230,7 @@ final class AppModel {
         generationTask = nil
         pendingGenerationJob = nil
         try? persistence.remove(key: PersistenceKey.generationJob)
+        try? persistence.remove(key: PersistenceKey.generationUpdate)
         try? persistence.remove(key: PersistenceKey.generationSubmissionKey)
         plannerEntryPoint = entryPoint
         rootFlow = .planner
@@ -361,6 +375,7 @@ final class AppModel {
         plan = generatedPlan
         try? persistence.save(generatedPlan, key: PersistenceKey.cachedPlan)
         try? persistence.remove(key: PersistenceKey.generationJob)
+        try? persistence.remove(key: PersistenceKey.generationUpdate)
         try? persistence.remove(key: PersistenceKey.generationSubmissionKey)
         pendingGenerationJob = nil
         generationTask = nil
@@ -369,7 +384,7 @@ final class AppModel {
             ownedItemIDs: Set(generatedPlan.basket.filter(\.pantryStatus).map(\.id))
         )
         persistGroceryState()
-        selectedTab = .home
+        selectedTab = .week
         rootFlow = .main
         completedPlanCount += 1
         try? persistence.save(completedPlanCount, key: PersistenceKey.completedPlanCount)
@@ -398,6 +413,11 @@ final class AppModel {
         }
         if let job = try? persistence.load(GenerationJob.self, key: PersistenceKey.generationJob) {
             pendingGenerationJob = job
+            if let update = try? persistence.load(GenerationUpdate.self, key: PersistenceKey.generationUpdate),
+               update.jobID == job.id {
+                generationStage = update.stage
+                generationMetadata = update.metadata
+            }
         }
         rootFlow = .restored(
             hasCompletedWelcome: completedWelcome,
@@ -413,6 +433,7 @@ final class AppModel {
 #if DEBUG
     private func applyDebugLaunchState() {
         let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-cove-ui-test-pause-generation") { generationObservationPausedForUITests = true }
         if arguments.contains("-cove-ui-test-week") { selectedTab = .week }
         if arguments.contains("-cove-ui-test-groceries") { selectedTab = .groceries }
         if arguments.contains("-cove-ui-test-pantry") { selectedTab = .pantry }
@@ -453,8 +474,12 @@ final class AppModel {
         let updates = await repository.generationUpdates(jobID: job.id)
         for try await update in updates {
             guard !Task.isCancelled else { return }
+            let currentIndex = GenerationStage.allCases.firstIndex(of: generationStage) ?? 0
+            let updateIndex = GenerationStage.allCases.firstIndex(of: update.stage) ?? 0
+            guard updateIndex >= currentIndex else { continue }
             generationStage = update.stage
-            generationProgress = update.progress
+            generationMetadata = update.metadata
+            try? persistence.save(update, key: PersistenceKey.generationUpdate)
             UIAccessibility.post(notification: .announcement, argument: update.stage.rawValue)
             if let planID = update.completedPlanID {
                 try await finishGeneration(planID: planID)
@@ -490,10 +515,11 @@ final class AppModel {
     private func clearTerminalGenerationJob(for error: Error) {
         guard let apiError = error as? APIError,
               case let .server(status, code, _) = apiError else { return }
-        let terminalCodes = ["BUDGET_TOO_LOW", "CONSTRAINT_CONFLICT", "UNPRICED_BASKET", "PROVIDER_UNAVAILABLE", "MODEL_FAILURE"]
+        let terminalCodes = ["BUDGET_TOO_LOW", "CONSTRAINT_CONFLICT", "UNPRICED_BASKET", "PROVIDER_UNAVAILABLE", "MODEL_FAILURE", "GENERATION_FAILED"]
         guard status == 404 || terminalCodes.contains(code?.uppercased() ?? "") else { return }
         pendingGenerationJob = nil
         try? persistence.remove(key: PersistenceKey.generationJob)
+        try? persistence.remove(key: PersistenceKey.generationUpdate)
         try? persistence.remove(key: PersistenceKey.generationSubmissionKey)
     }
 }

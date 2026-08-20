@@ -77,7 +77,7 @@ final class WeektableDomainTests: XCTestCase {
         )
 
         XCTAssertEqual(failure.kind, .budget)
-        XCTAssertEqual(failure.title, "We couldn’t make this week fit.")
+        XCTAssertEqual(failure.title, "We couldn’t make this week fit your current budget.")
         XCTAssertTrue(failure.message.contains("5 dinners for 4 people"))
         XCTAssertTrue(failure.message.contains(request.budgetCents.currency))
         XCTAssertFalse(failure.message.contains("internal optimizer detail"))
@@ -102,8 +102,15 @@ final class WeektableDomainTests: XCTestCase {
             request: request
         )
         XCTAssertEqual(temporary.kind, .temporary)
-        XCTAssertEqual(temporary.message, "Nothing you entered was lost. Please try again in a moment.")
+        XCTAssertEqual(temporary.message, "Your answers are still saved. Please try again in a moment.")
         XCTAssertFalse(temporary.message.contains("provider stack trace"))
+
+        let backend = GenerationFailure.userFacing(
+            for: APIError.server(status: 502, code: "GENERATION_FAILED", message: "database detail"),
+            request: request
+        )
+        XCTAssertEqual(backend.kind, .temporary)
+        XCTAssertFalse(backend.message.contains("database detail"))
     }
 
     func testWeekdayLabelsReplaceGenericDayValuesWithoutReorderingMeals() throws {
@@ -143,6 +150,61 @@ final class WeektableDomainTests: XCTestCase {
         XCTAssertEqual(received.map(\.stage), GenerationStage.allCases)
         XCTAssertEqual(received.last?.completedPlanID, job.planID)
         XCTAssertTrue(received.allSatisfy { $0.jobID == job.id })
+        XCTAssertEqual(received.last?.metadata?.ingredientCount, DemoData.plan.basket.count)
+    }
+
+    func testLegacyGenerationStageNamesRemainDecodableDuringDeployment() throws {
+        let payload = Data(#"{"jobId":"legacy-job","stage":"Checking complete packages","progress":0.6,"completedPlanId":null}"#.utf8)
+        let update = try JSONDecoder().decode(GenerationUpdate.self, from: payload)
+
+        XCTAssertEqual(update.stage, .packages)
+        XCTAssertNil(update.metadata)
+    }
+
+    @MainActor
+    func testGenerationRelaunchRestoresLatestActualStageAndMetadata() throws {
+        let persistence = PersistenceController(inMemory: true)
+        let job = GenerationJob(id: "restored-job", planID: DemoData.plan.id)
+        let metadata = GenerationMetadata(ingredientCount: 19, productsMatched: 17, reusedIngredientCount: 5, underBudgetCents: 1_200)
+        try persistence.save(true, key: PersistenceKey.hasCompletedWelcome)
+        try persistence.save(job, key: PersistenceKey.generationJob)
+        try persistence.save(
+            GenerationUpdate(jobID: job.id, stage: .budget, completedPlanID: nil, metadata: metadata),
+            key: PersistenceKey.generationUpdate
+        )
+
+        let relaunched = AppModel(repository: DemoPlanRepository(), persistence: persistence, subscriptions: SubscriptionService())
+
+        XCTAssertEqual(relaunched.rootFlow, .generation)
+        XCTAssertEqual(relaunched.pendingGenerationJob?.id, job.id)
+        XCTAssertEqual(relaunched.generationStage, .budget)
+        XCTAssertEqual(relaunched.generationMetadata, metadata)
+    }
+
+    @MainActor
+    func testBackgroundResumeReconnectsWithoutReplayingEarlierStagesAndOpensWeek() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let job = GenerationJob(id: "resume-job", planID: DemoData.plan.id)
+        try persistence.save(true, key: PersistenceKey.hasCompletedWelcome)
+        try persistence.save(job, key: PersistenceKey.generationJob)
+        try persistence.save(
+            GenerationUpdate(jobID: job.id, stage: .packages, completedPlanID: nil),
+            key: PersistenceKey.generationUpdate
+        )
+        let model = AppModel(repository: DemoPlanRepository(), persistence: persistence, subscriptions: SubscriptionService())
+
+        model.resumeGenerationIfNeeded()
+        for _ in 0..<40 where model.rootFlow != .main {
+            try await Task.sleep(for: .milliseconds(100))
+            XCTAssertNotEqual(model.generationStage, .planning)
+            XCTAssertNotEqual(model.generationStage, .combining)
+        }
+
+        XCTAssertEqual(model.rootFlow, .main)
+        XCTAssertEqual(model.selectedTab, .week)
+        XCTAssertEqual(model.plan?.id, DemoData.plan.id)
+        XCTAssertNil(try persistence.load(GenerationJob.self, key: PersistenceKey.generationJob))
+        XCTAssertNil(try persistence.load(GenerationUpdate.self, key: PersistenceKey.generationUpdate))
     }
 
     func testSwapPreviewKeepsPlanInsideBudget() async throws {

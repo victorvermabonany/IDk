@@ -4,6 +4,25 @@ import { generatePlan, DEFAULT_PLANNER_REQUEST } from "../domain/planner-service
 import { createMemoryState, MemoryStateRepository } from "./plan-store";
 
 describe("state repository", () => {
+  it("reports real generation boundaries and factual completion metadata without percentages", async () => {
+    const updates: Array<{ stage: string; metadata?: { ingredientCount?: number; productsMatched?: number; reusedIngredientCount?: number; underBudgetCents?: number } }> = [];
+    const plan = await generatePlan(DEFAULT_PLANNER_REQUEST, crypto.randomUUID(), async (update) => { updates.push(update); });
+
+    expect(updates.map((update) => update.stage)).toEqual([
+      "Building your grocery list",
+      "Checking your store",
+      "Balancing your budget",
+      "Finishing your week",
+    ]);
+    expect(updates.every((update) => !("progress" in update))).toBe(true);
+    expect(updates.at(-1)?.metadata).toEqual({
+      ingredientCount: plan.basket.length,
+      productsMatched: plan.basket.filter((item) => item.product !== null).length,
+      reusedIngredientCount: plan.basket.filter((item) => item.mealIds.length > 1).length,
+      underBudgetCents: plan.budgetCents - plan.estimatedTotalCents,
+    });
+  });
+
   it("keeps an authoritative plan when the local repository adapter is recreated", async () => {
     const sharedState = createMemoryState();
     const firstProcess = new MemoryStateRepository(sharedState);

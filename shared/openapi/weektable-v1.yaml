@@ -300,14 +300,20 @@ components:
         planId: { type: string }
     GenerationUpdate:
       type: object
-      required: [jobId, stage, progress]
+      required: [jobId, stage]
       properties:
         jobId: { type: string }
         stage:
           type: string
-          enum: [Planning your meals, Combining ingredients, Checking complete packages, Balancing your budget, Finalizing your week]
-        progress: { type: number, minimum: 0, maximum: 1 }
+          enum: [Planning your meals, Building your grocery list, Checking your store, Balancing your budget, Finishing your week]
         completedPlanId: { type: [string, "null"] }
+        metadata:
+          type: object
+          properties:
+            ingredientCount: { type: integer, minimum: 0 }
+            productsMatched: { type: integer, minimum: 0 }
+            reusedIngredientCount: { type: integer, minimum: 0 }
+            underBudgetCents: { type: integer, minimum: 0 }
     SwapPreview:
       type: object
       required: [id, meal, deltaCents, reusedIngredientCount, resultingTotalCents]

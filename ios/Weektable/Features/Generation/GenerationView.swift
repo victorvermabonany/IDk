@@ -18,21 +18,16 @@ struct GenerationView: View {
                         Text(appModel.generationFailure?.title ?? appModel.generationStage.rawValue)
                             .font(.coveTitle)
                             .foregroundStyle(WeektableTheme.ink)
-                            .contentTransition(.numericText())
+                            .contentTransition(.opacity)
                             .accessibilityAddTraits(.isHeader)
-                        Text(appModel.generationFailure?.message ?? "Cove is matching meals, package prices, and your budget.")
+                        Text(appModel.generationFailure?.message ?? appModel.generationStage.supportingCopy)
                             .font(.body)
                             .foregroundStyle(WeektableTheme.secondaryInk)
                             .fixedSize(horizontal: false, vertical: true)
                     }
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.24), value: appModel.generationStage)
 
                     if appModel.generationFailure == nil {
-                        ProgressView(value: appModel.generationProgress)
-                            .tint(WeektableTheme.brand)
-                            .scaleEffect(x: 1, y: 1.5)
-                            .accessibilityLabel("Plan generation progress")
-                            .accessibilityValue(appModel.generationProgress.formatted(.percent))
-
                         VStack(spacing: 0) {
                             ForEach(Array(GenerationStage.allCases.enumerated()), id: \.element) { index, stage in
                                 HStack(spacing: 14) {
@@ -41,17 +36,34 @@ struct GenerationView: View {
                                         .foregroundStyle(statusColor(for: index))
                                         .frame(width: 30, height: 30)
                                         .background(statusColor(for: index).opacity(0.10), in: Circle())
-                                    Text(stage.rawValue)
-                                        .font(.subheadline.weight(index == activeIndex ? .bold : .regular))
-                                        .foregroundStyle(index <= activeIndex ? WeektableTheme.ink : WeektableTheme.secondaryInk)
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(stage.rawValue)
+                                            .font(.subheadline.weight(index == activeIndex ? .bold : .semibold))
+                                            .foregroundStyle(stageTitleColor(for: index))
+                                        Text(stage.supportingCopy)
+                                            .font(.caption)
+                                            .foregroundStyle(WeektableTheme.secondaryInk.opacity(index > activeIndex ? 0.72 : 1))
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
                                     Spacer()
                                 }
-                                .frame(minHeight: 52)
-                                if index != GenerationStage.allCases.count - 1 { Divider().padding(.leading, 44) }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 10)
+                                .background(
+                                    index == activeIndex ? WeektableTheme.brand.opacity(0.08) : .clear,
+                                    in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                )
+                                .accessibilityElement(children: .combine)
                             }
                         }
-                        .padding(.horizontal, 16)
+                        .padding(8)
                         .coveCard()
+                        .animation(reduceMotion ? nil : .easeInOut(duration: 0.24), value: appModel.generationStage)
+
+                        if let metadata = appModel.generationMetadata, !metadata.isEmpty {
+                            generationFacts(metadata)
+                                .transition(reduceMotion ? .identity : .opacity.combined(with: .move(edge: .bottom)))
+                        }
                     } else {
                         failureActions
                     }
@@ -139,6 +151,48 @@ struct GenerationView: View {
     }
 
     private func statusColor(for index: Int) -> Color {
-        index <= activeIndex ? WeektableTheme.brand : WeektableTheme.secondaryInk
+        if index < activeIndex { return WeektableTheme.brand }
+        if index == activeIndex { return WeektableTheme.terracotta }
+        return WeektableTheme.secondaryInk.opacity(0.55)
+    }
+
+    private func stageTitleColor(for index: Int) -> Color {
+        index <= activeIndex ? WeektableTheme.ink : WeektableTheme.secondaryInk.opacity(0.72)
+    }
+
+    @ViewBuilder
+    private func generationFacts(_ metadata: GenerationMetadata) -> some View {
+        let facts = generationFactValues(metadata)
+        if !facts.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                SectionLabel(text: "Week details")
+                ForEach(facts, id: \.self) { fact in
+                    Label(fact, systemImage: "checkmark.circle.fill")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(WeektableTheme.brand)
+                }
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .coveCard()
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    private func generationFactValues(_ metadata: GenerationMetadata) -> [String] {
+        var facts: [String] = []
+        if let count = metadata.ingredientCount {
+            facts.append("\(count) ingredients combined")
+        }
+        if let count = metadata.productsMatched {
+            facts.append("\(count) products matched")
+        }
+        if let count = metadata.reusedIngredientCount, count > 0 {
+            facts.append("\(count) ingredients reused across dinners")
+        }
+        if let cents = metadata.underBudgetCents, cents > 0 {
+            facts.append("\(cents.currency) under budget")
+        }
+        return facts
     }
 }

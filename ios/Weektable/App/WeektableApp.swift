@@ -32,6 +32,7 @@ struct WeektableApp: App {
 private enum UITestLaunchState {
     private static let resetArgument = "-cove-ui-test-reset"
     private static let activePlanArgument = "-cove-ui-test-active-plan"
+    private static let generationArgument = "-cove-ui-test-generation"
 
     @MainActor
     static func prepare(persistence: PersistenceController) {
@@ -39,6 +40,19 @@ private enum UITestLaunchState {
         guard arguments.contains(resetArgument) else { return }
 
         try? persistence.removeAll()
+        if arguments.contains(generationArgument) {
+            let job = GenerationJob(id: "ui-generation-job", planID: DemoData.plan.id)
+            let update = GenerationUpdate(
+                jobID: job.id,
+                stage: .packages,
+                completedPlanID: nil,
+                metadata: GenerationMetadata(ingredientCount: 18, productsMatched: 16, reusedIngredientCount: 4)
+            )
+            try? persistence.save(true, key: PersistenceKey.hasCompletedWelcome)
+            try? persistence.save(job, key: PersistenceKey.generationJob)
+            try? persistence.save(update, key: PersistenceKey.generationUpdate)
+            return
+        }
         guard arguments.contains(activePlanArgument) else { return }
 
         try? persistence.save(true, key: PersistenceKey.hasCompletedWelcome)

@@ -2,13 +2,19 @@ import "server-only";
 
 import { createHash, randomUUID } from "node:crypto";
 import postgres, { type Sql } from "postgres";
-import { generatePlan } from "../domain/planner-service";
+import { generatePlan, type GenerationProgressMetadata } from "../domain/planner-service";
 import { applyPricedSwap, createSwapPreviews, reconcileGroceryOwnership, type PricedSwapPreview } from "../domain/swap-service";
 import { PlanGenerationError, type MealPlan, type PlannerRequest, type SwapPreview } from "../domain/types";
 import { measured } from "./observability";
 import { generationConcurrency, planRetentionDays, productionConfig, runtimeMode } from "./runtime-config";
 
-export interface GenerationUpdateRecord { jobId: string; stage: string; progress: number; completedPlanId: string | null; }
+export interface GenerationUpdateRecord {
+  jobId: string;
+  stage: string;
+  completedPlanId: string | null;
+  metadata?: GenerationProgressMetadata;
+  progress?: number;
+}
 export type GenerationJobStatus = "queued" | "running" | "completed" | "failed";
 export interface JobRecord {
   id: string;
@@ -26,6 +32,7 @@ export interface StateRepository {
   getPlan(id: string): Promise<MealPlan | undefined>;
   enqueueGeneration(idempotencyKey: string, job: JobRecord, request: PlannerRequest): Promise<JobRecord>;
   claimGeneration(jobID: string): Promise<ClaimedGeneration | undefined>;
+  appendGenerationUpdate(jobID: string, update: GenerationUpdateRecord): Promise<void>;
   completeGeneration(job: JobRecord, plan: MealPlan): Promise<void>;
   failGeneration(jobID: string, code: string, message: string): Promise<void>;
   savePreviews(planID: string, mealID: string, previews: PricedSwapPreview[]): Promise<void>;
@@ -71,6 +78,13 @@ export class MemoryStateRepository implements StateRepository {
     job.status = "running";
     this.state.generationLeases.set(jobID, Date.now() + 120_000);
     return { job: structuredClone(job), request: structuredClone(request) };
+  }
+  async appendGenerationUpdate(jobID: string, update: GenerationUpdateRecord) {
+    const job = this.state.jobs.get(jobID);
+    if (!job || job.status !== "running") return;
+    const latest = job.updates.at(-1);
+    if (latest?.stage === update.stage) job.updates[job.updates.length - 1] = structuredClone(update);
+    else job.updates.push(structuredClone(update));
   }
   async completeGeneration(job: JobRecord, plan: MealPlan) {
     this.state.plans.set(plan.id, structuredClone(plan));
@@ -163,6 +177,17 @@ export class PostgresStateRepository implements StateRepository {
     const row = rows[0];
     return row ? { job: { id: row.id, planId: row.plan_id, updates: row.updates, status: row.status }, request: row.request_snapshot } : undefined;
   }
+  async appendGenerationUpdate(jobID: string, update: GenerationUpdateRecord) {
+    await this.ready();
+    await this.sql`
+      UPDATE weektable_generation_jobs
+      SET updates = CASE
+        WHEN updates->-1->>'stage' = ${update.stage}
+          THEN (updates - (jsonb_array_length(updates) - 1)) || ${this.sql.json(JSON.parse(JSON.stringify(update)))}::jsonb
+        ELSE updates || ${this.sql.json(JSON.parse(JSON.stringify(update)))}::jsonb
+      END
+      WHERE id = ${jobID} AND status = 'running' AND expires_at > now()`;
+  }
   async completeGeneration(job: JobRecord, plan: MealPlan) {
     await this.ready();
     const expiry = this.expiry();
@@ -216,7 +241,7 @@ export class PostgresStateRepository implements StateRepository {
   }
 }
 
-const stages = ["Planning your meals", "Combining ingredients", "Checking complete packages", "Balancing your budget", "Finalizing your week"];
+const stages = ["Planning your meals", "Building your grocery list", "Checking your store", "Balancing your budget", "Finishing your week"];
 let activeGenerations = 0;
 let repositoryOverride: StateRepository | undefined;
 let productionRepository: StateRepository | undefined;
@@ -243,7 +268,7 @@ export async function startGeneration(request: PlannerRequest, idempotencyKey: s
     id: jobID,
     planId: randomUUID(),
     status: "queued",
-    updates: [{ jobId: jobID, stage: stages[0], progress: 0.05, completedPlanId: null }],
+    updates: [{ jobId: jobID, stage: stages[0], completedPlanId: null }],
   };
   return store.enqueueGeneration(idempotencyKey, job, request);
 }
@@ -256,15 +281,21 @@ export async function runGeneration(jobID: string) {
   activeGenerations += 1;
   try {
     await measured("plan.generation", async () => {
-      const plan = await generatePlan(claimed.request, claimed.job.planId);
+      const plan = await generatePlan(claimed.request, claimed.job.planId, async (event) => {
+        await store.appendGenerationUpdate(jobID, {
+          jobId: claimed.job.id,
+          stage: event.stage,
+          completedPlanId: null,
+          metadata: event.metadata,
+        });
+      });
+      const latest = await store.getJob(jobID);
       const completed: JobRecord = {
         ...claimed.job,
         status: "completed",
-        updates: stages.map((stage, index) => ({
-          jobId: claimed.job.id,
-          stage,
-          progress: (index + 1) / stages.length,
-          completedPlanId: index === stages.length - 1 ? plan.id : null,
+        updates: (latest?.updates ?? claimed.job.updates).map((update, index, updates) => ({
+          ...update,
+          completedPlanId: index === updates.length - 1 ? plan.id : null,
         })),
       };
       await store.completeGeneration(completed, plan);
